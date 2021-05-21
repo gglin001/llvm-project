@@ -8,7 +8,6 @@
         "LLVM_ENABLE_ASSERTIONS": "ON",
         "LLVM_ENABLE_RTTI": "ON",
         "LLVM_ENABLE_ZLIB": "OFF",
-        "LLVM_BUILD_EXAMPLES": "OFF",
         "LLVM_INCLUDE_TESTS": "OFF",
         "LLVM_INCLUDE_DOCS": "OFF",
         "LLVM_TOOL_LLVM_GO_BUILD": "OFF",
@@ -22,13 +21,15 @@
         "LLVM_INCLUDE_TOOLS": "ON",
         "LLVM_BUILD_TOOLS": "ON",
         "LLVM_INCLUDE_GO_TESTS": "OFF",
-        "LLVM_INCLUDE_EXAMPLES": "OFF",
         "LLVM_INCLUDE_BENCHMARKS": "OFF",
         "LLVM_INCLUDE_UTILS": "OFF",
         "LLVM_ENABLE_OCAMLDOC": "OFF",
         "LLVM_ENABLE_THREADS": "OFF",
         // "LLVM_TOOL_BUGPOINT_BUILD": "OFF",
         // "LLVM_TOOL_BUGPOINT_PASSES_BUILD": "OFF"
+        // EXAMPLES
+        "LLVM_BUILD_EXAMPLES": "ON",
+        "LLVM_INCLUDE_EXAMPLES": "ON",
     },
     "cmake.sourceDirectory": "${workspaceFolder}/llvm",
     "files.watcherExclude": {
