@@ -1,9 +1,13 @@
 {
     // python path
-    "python.pythonPath": "/data/songlin/.miniconda3/envs/py36/bin/python",
+    "python.pythonPath": "/Users/allen/opt/miniconda3/envs/py36/bin/python",
+    "cmake.configureArgs": [
+        "-DLLVM_ENABLE_PROJECTS=mlir;libcxx;libcxxabi",
+    ],
     "cmake.configureSettings": {
+        "CMAKE_PREFIX_PATH": "/Users/allen/opt/miniconda3/envs/py36/lib",
         "CMAKE_INSTALL_PREFIX": "install",
-        "LLVM_ENABLE_PROJECTS": "mlir",
+        // "LLVM_ENABLE_PROJECTS": "mlir",
         "LLVM_TARGETS_TO_BUILD": "host",
         "LLVM_ENABLE_ASSERTIONS": "ON",
         "LLVM_ENABLE_RTTI": "ON",
@@ -30,6 +34,8 @@
         // EXAMPLES
         "LLVM_BUILD_EXAMPLES": "ON",
         "LLVM_INCLUDE_EXAMPLES": "ON",
+        "Python3_EXECUTABLE": "/Users/allen/opt/miniconda3/envs/py36/bin/python",
+        "LLVM_ENABLE_TERMINFO": "OFF",
     },
     "cmake.sourceDirectory": "${workspaceFolder}/llvm",
     "files.watcherExclude": {
@@ -38,5 +44,12 @@
         "**/node_modules/*/**": true,
         "**/.hg/store/**": true,
         "**/build/**": true,
+    },
+    "files.associations": {
+        "**/include/c++/v1/**/*": "cpp",
+        "**/include/c++/**/*": "cpp",
+        "*.pxi": "python",
+        "*.inc": "cpp",
+        "*.def": "cpp"
     },
 }

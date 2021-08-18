@@ -5,31 +5,12 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(gdb) Launch CMake Target",
-            "type": "cppdbg",
+            "type": "lldb",
             "request": "launch",
+            "name": "Launch",
             "program": "${command:cmake.selectLaunchTarget}",
             "args": [],
-            "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "symbolLoadInfo": {
-                "loadAll": false,
-                "exceptionList": "*LLVM*;*MLIR*"
-            },
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                },
-                {
-                    "description": "load .gdbinit",
-                    "text": "source ${workspaceFolder}/.gdbinit"
-                }
-            ]
-        }
+        },
     ]
 }
