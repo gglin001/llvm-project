@@ -2,7 +2,9 @@
     // python path
     "python.pythonPath": "/Users/allen/opt/miniconda3/envs/py36/bin/python",
     "cmake.configureArgs": [
-        "-DLLVM_ENABLE_PROJECTS=mlir;libcxx;libcxxabi",
+        // "-DLLVM_ENABLE_PROJECTS=mlir;libcxx;libcxxabi",
+        // "-DLLVM_ENABLE_PROJECTS=mlir;clang;libcxx;libcxxabi",
+        "-DLLVM_ENABLE_PROJECTS=mlir;clang;clang-tools-extra;libcxx;libcxxabi",
     ],
     "cmake.configureSettings": {
         "CMAKE_PREFIX_PATH": "/Users/allen/opt/miniconda3/envs/py36/lib",
