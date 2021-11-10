@@ -7,11 +7,32 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Launch",
-            // "program": "${command:cmake.selectLaunchTarget}",
+            "name": "mlir-cpu-runner demo",
             "program": "${command:cmake.getLaunchTargetPath}",
-            "args": [],
-            "cwd": "${workspaceFolder}",
+            "args": [
+                "${workspaceFolder}/mlir/test/mlir-cpu-runner/simple.mlir"
+            ],
+            "cwd": "${workspaceFolder}"
         },
+        // {
+        //     "type": "lldb",
+        //     "request": "launch",
+        //     "name": "build demo.cpp",
+        //     // "program": "${command:cmake.selectLaunchTarget}",
+        //     "program": "${command:cmake.getLaunchTargetPath}",
+        //     "args": [
+        //         "-S",
+        //         "-x",
+        //         "c++",
+        //         "-lc++",
+        //         "-isysroot",
+        //         "/Library/Developer/CommandLineTools/SDKs/MacOSX11.3.sdk",
+        //         "${workspaceFolder}/demos/demo.cpp",
+        //     ],
+        //     "cwd": "${workspaceFolder}/demos",
+        //     // "env": {
+        //     //     "CPATH": "${workspaceFolder}/build/include/c++/v1",
+        //     // }
+        // },
     ]
 }
