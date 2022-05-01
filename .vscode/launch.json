@@ -1,0 +1,28 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "custom",
+            "name": "Custom launch",
+            "initCommands": [
+                "settings set target.disable-aslr false",
+            ],
+            "targetCreateCommands": [
+                // "target create ${workspaceFolder}/build/bin/mlir-cpu-runner",
+                // "target create ${workspaceFolder}/build/bin/clang++",
+                "target create ${workspaceFolder}/build/install/bin/clang++",
+            ],
+            "processCreateCommands": [
+                // "process launch -- mlir/test/mlir-cpu-runner/simple.mlir --color",
+                "process launch -- ${workspaceFolder}/demos/hello.cpp -### -isysroot=/opt/conda/envs/py38/x86_64-conda-linux-gnu/sysroot",
+                // "CMAKE_SYSROOT": "/opt/conda/envs/py38/x86_64-conda-linux-gnu/sysroot",
+                // "process launch -- ${workspaceFolder}/clang/test/CXX/expr/p8.cpp"
+                // "process launch -- -isysroot /opt/conda ${workspaceFolder}/demos/hello.cpp",
+            ],
+        },
+    ]
+}

@@ -1,0 +1,57 @@
+{
+    // used in docker container
+    // https://github.com/gglin001/cpp_demos/blob/master/Dockerfile
+    "cmake.configureArgs": [
+        "-DLLVM_ENABLE_PROJECTS=mlir;clang;clang-tools-extra",
+        // "-DLLVM_ENABLE_RUNTIMES=libcxx;libcxxabi"
+    ],
+    "cmake.configureSettings": {
+        "CMAKE_PREFIX_PATH": "/opt/conda/envs/py38/lib",
+        "CMAKE_SYSROOT": "/opt/conda/envs/py38/x86_64-conda-linux-gnu/sysroot",
+        "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
+        "CMAKE_INSTALL_PREFIX": "install",
+        // "Python3_EXECUTABLE": "/opt/conda/envs/py38/bin/python",
+        "LLVM_BUILD_EXAMPLES": "ON",
+        "LLVM_BUILD_TOOLS": "ON",
+        "LLVM_ENABLE_ASSERTIONS": "ON",
+        "LLVM_ENABLE_LIBCXX": "OFF",
+        "LLVM_ENABLE_LIBEDIT": "OFF",
+        "LLVM_ENABLE_LLD": "OFF",
+        "LLVM_ENABLE_OCAMLDOC": "OFF",
+        "LLVM_ENABLE_RTTI": "ON",
+        "LLVM_ENABLE_TERMINFO": "OFF",
+        "LLVM_ENABLE_THREADS": "ON",
+        "LLVM_INCLUDE_BENCHMARKS": "OFF",
+        "LLVM_INCLUDE_DOCS": "OFF",
+        "LLVM_INCLUDE_EXAMPLES": "ON",
+        "LLVM_INCLUDE_GO_TESTS": "OFF",
+        "LLVM_INCLUDE_TESTS": "ON",
+        "LLVM_INCLUDE_TOOLS": "ON",
+        "LLVM_INCLUDE_UTILS": "ON",
+        "LLVM_TARGETS_TO_BUILD": "Native",
+        "LLVM_TOOL_LLVM_GO_BUILD": "OFF",
+        "LLVM_TOOL_LLVM_LTO_BUILD": "ON",
+        "LLVM_TOOL_LLVM_LTO2_BUILD": "ON",
+        "LLVM_TOOL_LTO_BUILD": "ON",
+        "MLIR_BINDINGS_PYTHON_ENABLED": "ON",
+        "MLIR_INCLUDE_DOCS": "OFF",
+        "MLIR_INCLUDE_TESTS": "ON",
+        "CMAKE_VERBOSE_MAKEFILE": "OFF",
+        // "CMAKE_C_LINK_EXECUTABLE": "/opt/conda/envs/py38/x86_64-conda-linux-gnu/bin/ld",
+        // "CMAKE_CXX_LINK_EXECUTABLE": "/opt/conda/envs/py38/x86_64-conda-linux-gnu/bin/ld",
+    },
+    "cmake.sourceDirectory": "${workspaceFolder}/llvm",
+    // https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-mlir
+    // "mlir.server_path": "/opt/conda/envs/py38/bin/mlir-lsp-server",
+    // use https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools
+    // "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+    // "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    // "C_Cpp.codeAnalysis.clangTidy.enabled": true,
+    // "C_Cpp.codeAnalysis.clangTidy.path": "/opt/conda/envs/py38/bin/clang-tidy",
+    // "C_Cpp.intelliSenseEngine": "Default",
+    // "C_Cpp.intelliSenseCachePath": "${workspaceFolder}/build/.vsc_cpp_cache",
+    "terminal.integrated.env.linux": {
+        // "PATH": "${workspaceFolder}/build/bin:${env:PATH}",
+        "PATH": "${workspaceFolder}/build/install/bin:${env:PATH}",
+    },
+}
