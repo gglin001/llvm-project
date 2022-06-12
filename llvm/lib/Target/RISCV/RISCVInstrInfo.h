@@ -135,6 +135,8 @@ public:
   virtual bool isMBBSafeToOutlineFrom(MachineBasicBlock &MBB,
                                       unsigned &Flags) const override;
 
+  bool shouldOutlineFromFunctionByDefault(MachineFunction &MF) const override;
+
   // Calculate target-specific information for a set of outlining candidates.
   outliner::OutlinedFunction getOutliningCandidateInfo(
       std::vector<outliner::Candidate> &RepeatedSequenceLocs) const override;
@@ -182,6 +184,8 @@ public:
 
   Optional<std::pair<unsigned, unsigned>>
   isRVVSpillForZvlsseg(unsigned Opcode) const;
+
+  bool isFaultFirstLoad(const MachineInstr &MI) const;
 
 protected:
   const RISCVSubtarget &STI;
