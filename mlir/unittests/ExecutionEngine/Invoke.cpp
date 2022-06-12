@@ -54,6 +54,7 @@ static LogicalResult lowerToLLVMDialect(ModuleOp module) {
   return pm.run(module);
 }
 
+// debug
 TEST(MLIRExecutionEngine, AddInteger) {
   std::string moduleStr = R"mlir(
   func.func @foo(%arg0 : i32) -> i32 attributes { llvm.emit_c_interface } {

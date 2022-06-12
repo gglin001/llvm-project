@@ -6,6 +6,26 @@
     "configurations": [
         {
             "type": "lldb",
+            "request": "launch",
+            "name": "Launch",
+            "cwd": "${workspaceFolder}",
+            "terminal": "console",
+            // "program": "${workspaceFolder}/build/tools/mlir/unittests/ExecutionEngine/MLIRExecutionEngineTests",
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [
+                "--gtest_filter=*AddInteger",
+            ],
+            "initCommands": [
+                "settings set target.disable-aslr false",
+                // "command source ${workspaceRoot}/.lldbinit",
+                // "settings set target.process.thread.step-avoid-regexp (.)std(.)*",
+            ],
+            "env": {
+                "GLOG_v": "10",
+            },
+        },
+        {
+            "type": "lldb",
             "request": "custom",
             "name": "Custom launch",
             "initCommands": [

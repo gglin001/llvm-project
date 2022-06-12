@@ -10,7 +10,6 @@
         "CMAKE_SYSROOT": "/opt/conda/envs/py38/x86_64-conda-linux-gnu/sysroot",
         "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
         "CMAKE_INSTALL_PREFIX": "install",
-        // "Python3_EXECUTABLE": "/opt/conda/envs/py38/bin/python",
         "LLVM_BUILD_EXAMPLES": "ON",
         "LLVM_BUILD_TOOLS": "ON",
         "LLVM_ENABLE_ASSERTIONS": "ON",
@@ -37,6 +36,7 @@
         "MLIR_INCLUDE_DOCS": "OFF",
         "MLIR_INCLUDE_TESTS": "ON",
         "CMAKE_VERBOSE_MAKEFILE": "OFF",
+        // "Python3_EXECUTABLE": "/opt/conda/envs/py38/bin/python",
         // "CMAKE_C_LINK_EXECUTABLE": "/opt/conda/envs/py38/x86_64-conda-linux-gnu/bin/ld",
         // "CMAKE_CXX_LINK_EXECUTABLE": "/opt/conda/envs/py38/x86_64-conda-linux-gnu/bin/ld",
     },
@@ -50,6 +50,7 @@
     // "C_Cpp.codeAnalysis.clangTidy.path": "/opt/conda/envs/py38/bin/clang-tidy",
     // "C_Cpp.intelliSenseEngine": "Default",
     // "C_Cpp.intelliSenseCachePath": "${workspaceFolder}/build/.vsc_cpp_cache",
+    "clangd.path": "/opt/conda/envs/py38/bin/clangd",
     "terminal.integrated.env.linux": {
         // "PATH": "${workspaceFolder}/build/bin:${env:PATH}",
         "PATH": "${workspaceFolder}/build/install/bin:${env:PATH}",
