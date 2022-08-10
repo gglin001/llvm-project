@@ -265,16 +265,31 @@ public:
   bool hasOnlyConst() const { return Mask == Const; }
   void removeConst() { Mask &= ~Const; }
   void addConst() { Mask |= Const; }
+  Qualifiers withConst() const {
+    Qualifiers Qs = *this;
+    Qs.addConst();
+    return Qs;
+  }
 
   bool hasVolatile() const { return Mask & Volatile; }
   bool hasOnlyVolatile() const { return Mask == Volatile; }
   void removeVolatile() { Mask &= ~Volatile; }
   void addVolatile() { Mask |= Volatile; }
+  Qualifiers withVolatile() const {
+    Qualifiers Qs = *this;
+    Qs.addVolatile();
+    return Qs;
+  }
 
   bool hasRestrict() const { return Mask & Restrict; }
   bool hasOnlyRestrict() const { return Mask == Restrict; }
   void removeRestrict() { Mask &= ~Restrict; }
   void addRestrict() { Mask |= Restrict; }
+  Qualifiers withRestrict() const {
+    Qualifiers Qs = *this;
+    Qs.addRestrict();
+    return Qs;
+  }
 
   bool hasCVRQualifiers() const { return getCVRQualifiers(); }
   unsigned getCVRQualifiers() const { return Mask & CVRMask; }
@@ -607,6 +622,47 @@ private:
   static const uint32_t AddressSpaceMask =
       ~(CVRMask | UMask | GCAttrMask | LifetimeMask);
   static const uint32_t AddressSpaceShift = 9;
+};
+
+class QualifiersAndAtomic {
+  Qualifiers Quals;
+  bool HasAtomic;
+
+public:
+  QualifiersAndAtomic() : HasAtomic(false) {}
+  QualifiersAndAtomic(Qualifiers Quals, bool HasAtomic)
+      : Quals(Quals), HasAtomic(HasAtomic) {}
+
+  operator Qualifiers() const { return Quals; }
+
+  bool hasVolatile() const { return Quals.hasVolatile(); }
+  bool hasConst() const { return Quals.hasConst(); }
+  bool hasRestrict() const { return Quals.hasRestrict(); }
+  bool hasAtomic() const { return HasAtomic; }
+
+  void addVolatile() { Quals.addVolatile(); }
+  void addConst() { Quals.addConst(); }
+  void addRestrict() { Quals.addRestrict(); }
+  void addAtomic() { HasAtomic = true; }
+
+  void removeVolatile() { Quals.removeVolatile(); }
+  void removeConst() { Quals.removeConst(); }
+  void removeRestrict() { Quals.removeRestrict(); }
+  void removeAtomic() { HasAtomic = false; }
+
+  QualifiersAndAtomic withVolatile() {
+    return {Quals.withVolatile(), HasAtomic};
+  }
+  QualifiersAndAtomic withConst() { return {Quals.withConst(), HasAtomic}; }
+  QualifiersAndAtomic withRestrict() {
+    return {Quals.withRestrict(), HasAtomic};
+  }
+  QualifiersAndAtomic withAtomic() { return {Quals, true}; }
+
+  QualifiersAndAtomic &operator+=(Qualifiers RHS) {
+    Quals += RHS;
+    return *this;
+  }
 };
 
 /// A std::pair-like structure for storing a qualified type split
@@ -1734,6 +1790,18 @@ protected:
     unsigned NumArgs;
   };
 
+  class SubstTemplateTypeParmTypeBitfields {
+    friend class SubstTemplateTypeParmType;
+
+    unsigned : NumTypeBits;
+
+    /// Represents the index within a pack if this represents a substitution
+    /// from a pack expansion.
+    /// Positive non-zero number represents the index + 1.
+    /// Zero means this is not substituted from an expansion.
+    unsigned PackIndex;
+  };
+
   class SubstTemplateTypeParmPackTypeBitfields {
     friend class SubstTemplateTypeParmPackType;
 
@@ -1816,6 +1884,7 @@ protected:
     ElaboratedTypeBitfields ElaboratedTypeBits;
     VectorTypeBitfields VectorTypeBits;
     SubstTemplateTypeParmPackTypeBitfields SubstTemplateTypeParmPackTypeBits;
+    SubstTemplateTypeParmTypeBitfields SubstTemplateTypeParmTypeBits;
     TemplateSpecializationTypeBitfields TemplateSpecializationTypeBits;
     DependentTemplateSpecializationTypeBitfields
       DependentTemplateSpecializationTypeBits;
@@ -4918,9 +4987,12 @@ class SubstTemplateTypeParmType : public Type, public llvm::FoldingSetNode {
   // The original type parameter.
   const TemplateTypeParmType *Replaced;
 
-  SubstTemplateTypeParmType(const TemplateTypeParmType *Param, QualType Canon)
+  SubstTemplateTypeParmType(const TemplateTypeParmType *Param, QualType Canon,
+                            Optional<unsigned> PackIndex)
       : Type(SubstTemplateTypeParm, Canon, Canon->getDependence()),
-        Replaced(Param) {}
+        Replaced(Param) {
+    SubstTemplateTypeParmTypeBits.PackIndex = PackIndex ? *PackIndex + 1 : 0;
+  }
 
 public:
   /// Gets the template parameter that was substituted for.
@@ -4934,18 +5006,25 @@ public:
     return getCanonicalTypeInternal();
   }
 
+  Optional<unsigned> getPackIndex() const {
+    if (SubstTemplateTypeParmTypeBits.PackIndex == 0)
+      return None;
+    return SubstTemplateTypeParmTypeBits.PackIndex - 1;
+  }
+
   bool isSugared() const { return true; }
   QualType desugar() const { return getReplacementType(); }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, getReplacedParameter(), getReplacementType());
+    Profile(ID, getReplacedParameter(), getReplacementType(), getPackIndex());
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID,
                       const TemplateTypeParmType *Replaced,
-                      QualType Replacement) {
+                      QualType Replacement, Optional<unsigned> PackIndex) {
     ID.AddPointer(Replaced);
     ID.AddPointer(Replacement.getAsOpaquePtr());
+    ID.AddInteger(PackIndex ? *PackIndex - 1 : 0);
   }
 
   static bool classof(const Type *T) {
@@ -5513,9 +5592,6 @@ class ElaboratedType final
       ElaboratedTypeBits.HasOwnedTagDecl = true;
       *getTrailingObjects<TagDecl *>() = OwnedTagDecl;
     }
-    assert(!(Keyword == ETK_None && NNS == nullptr) &&
-           "ElaboratedType cannot have elaborated type keyword "
-           "and name qualifier both null.");
   }
 
 public:
@@ -5749,7 +5825,7 @@ public:
   static void Profile(llvm::FoldingSetNodeID &ID, QualType Pattern,
                       Optional<unsigned> NumExpansions) {
     ID.AddPointer(Pattern.getAsOpaquePtr());
-    ID.AddBoolean(NumExpansions.hasValue());
+    ID.AddBoolean(NumExpansions.has_value());
     if (NumExpansions)
       ID.AddInteger(*NumExpansions);
   }

@@ -12,8 +12,6 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 class ModuleLoadedNotifysTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     # At least DynamicLoaderDarwin and DynamicLoaderPOSIXDYLD should batch up
@@ -84,8 +82,10 @@ class ModuleLoadedNotifysTestCase(TestBase):
                         module = lldb.SBTarget.GetModuleAtIndexFromEvent(i, event)
                         # On macOS Ventura and later, dyld and the main binary
                         # will be loaded again when dyld moves itself into the
-                        # shared cache.
-                        if module.file.fullpath not in ['/usr/lib/dyld', exe]:
+                        # shared cache. Use the basename so this also works
+                        # when reading dyld from the expanded shared cache.
+                        exe_basename = lldb.SBFileSpec(exe).basename
+                        if module.file.basename not in ['dyld', exe_basename]:
                             self.assertTrue(module not in already_loaded_modules, '{} is already loaded'.format(module))
                         already_loaded_modules.append(module)
                         if self.TraceOn():

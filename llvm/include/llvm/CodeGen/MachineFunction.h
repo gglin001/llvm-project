@@ -1055,7 +1055,7 @@ public:
     return FrameInstructions;
   }
 
-  LLVM_NODISCARD unsigned addFrameInst(const MCCFIInstruction &Inst);
+  [[nodiscard]] unsigned addFrameInst(const MCCFIInstruction &Inst);
 
   /// Returns a reference to a list of symbols immediately following calls to
   /// _setjmp in the function. Used to construct the longjmp target table used
@@ -1130,12 +1130,6 @@ public:
 
   /// Add a cleanup action for a landing pad.
   void addCleanup(MachineBasicBlock *LandingPad);
-
-  void addSEHCatchHandler(MachineBasicBlock *LandingPad, const Function *Filter,
-                          const BlockAddress *RecoverBA);
-
-  void addSEHCleanupHandler(MachineBasicBlock *LandingPad,
-                            const Function *Cleanup);
 
   /// Return the type id for the specified typeinfo.  This is function wide.
   unsigned getTypeIDFor(const GlobalValue *TI);

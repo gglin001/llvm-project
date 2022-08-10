@@ -209,11 +209,6 @@
 #define TEST_CONSTINIT
 #endif
 
-#if !defined(__cpp_impl_three_way_comparison) \
-    && (!defined(_MSC_VER) || defined(__clang__) || _MSC_VER < 1920 || _MSVC_LANG <= 201703L)
-#define TEST_HAS_NO_SPACESHIP_OPERATOR
-#endif
-
 #if TEST_STD_VER < 11
 #define ASSERT_NOEXCEPT(...)
 #define ASSERT_NOT_NOEXCEPT(...)
@@ -361,10 +356,6 @@ inline void DoNotOptimize(Tp const& value) {
 
 #if defined(_LIBCPP_HAS_NO_INT128) || defined(_MSVC_STL_VERSION)
 #   define TEST_HAS_NO_INT128
-#endif
-
-#if defined(_LIBCPP_HAS_NO_UNICODE_CHARS)
-#   define TEST_HAS_NO_UNICODE_CHARS
 #endif
 
 #if defined(_LIBCPP_HAS_NO_LOCALIZATION)

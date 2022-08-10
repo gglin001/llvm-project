@@ -72,7 +72,7 @@ static CCMangling getCallingConvMangling(const ASTContext &Context,
   // can call it with the correct function signature.
   if (Triple.isWasm())
     if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(ND))
-      if (FD->isMain() && FD->hasPrototype() && FD->param_size() == 2)
+      if (FD->isMain() && FD->getNumParams() == 2)
         return CCM_WasmMainArgcArgv;
 
   if (!Triple.isOSWindows() || !Triple.isX86())
@@ -132,6 +132,10 @@ bool MangleContext::shouldMangleDeclName(const NamedDecl *D) {
   // Declarations that don't have identifier names always need to be mangled.
   if (isa<MSGuidDecl>(D))
     return true;
+
+  // HLSL shader entry function never need to be mangled.
+  if (getASTContext().getLangOpts().HLSL && D->hasAttr<HLSLShaderAttr>())
+    return false;
 
   return shouldMangleCXXName(D);
 }

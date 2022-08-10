@@ -4362,17 +4362,13 @@ Sema::BuildMemInitializer(Decl *ConstructorD,
     }
 
     if (BaseType.isNull()) {
-      BaseType = Context.getTypeDeclType(TyD);
+      BaseType = getElaboratedType(ETK_None, SS, Context.getTypeDeclType(TyD));
       MarkAnyDeclReferenced(TyD->getLocation(), TyD, /*OdrUse=*/false);
-      if (SS.isSet()) {
-        BaseType = Context.getElaboratedType(ETK_None, SS.getScopeRep(),
-                                             BaseType);
-        TInfo = Context.CreateTypeSourceInfo(BaseType);
-        ElaboratedTypeLoc TL = TInfo->getTypeLoc().castAs<ElaboratedTypeLoc>();
-        TL.getNamedTypeLoc().castAs<TypeSpecTypeLoc>().setNameLoc(IdLoc);
-        TL.setElaboratedKeywordLoc(SourceLocation());
-        TL.setQualifierLoc(SS.getWithLocInContext(Context));
-      }
+      TInfo = Context.CreateTypeSourceInfo(BaseType);
+      ElaboratedTypeLoc TL = TInfo->getTypeLoc().castAs<ElaboratedTypeLoc>();
+      TL.getNamedTypeLoc().castAs<TypeSpecTypeLoc>().setNameLoc(IdLoc);
+      TL.setElaboratedKeywordLoc(SourceLocation());
+      TL.setQualifierLoc(SS.getWithLocInContext(Context));
     }
   }
 
@@ -4468,10 +4464,10 @@ Sema::BuildMemberInitializer(ValueDecl *Member, Expr *Init,
 MemInitResult
 Sema::BuildDelegatingInitializer(TypeSourceInfo *TInfo, Expr *Init,
                                  CXXRecordDecl *ClassDecl) {
-  SourceLocation NameLoc = TInfo->getTypeLoc().getLocalSourceRange().getBegin();
+  SourceLocation NameLoc = TInfo->getTypeLoc().getSourceRange().getBegin();
   if (!LangOpts.CPlusPlus11)
     return Diag(NameLoc, diag::err_delegating_ctor)
-      << TInfo->getTypeLoc().getLocalSourceRange();
+           << TInfo->getTypeLoc().getSourceRange();
   Diag(NameLoc, diag::warn_cxx98_compat_delegating_ctor);
 
   bool InitList = true;
@@ -4532,12 +4528,11 @@ MemInitResult
 Sema::BuildBaseInitializer(QualType BaseType, TypeSourceInfo *BaseTInfo,
                            Expr *Init, CXXRecordDecl *ClassDecl,
                            SourceLocation EllipsisLoc) {
-  SourceLocation BaseLoc
-    = BaseTInfo->getTypeLoc().getLocalSourceRange().getBegin();
+  SourceLocation BaseLoc = BaseTInfo->getTypeLoc().getBeginLoc();
 
   if (!BaseType->isDependentType() && !BaseType->isRecordType())
     return Diag(BaseLoc, diag::err_base_init_does_not_name_class)
-             << BaseType << BaseTInfo->getTypeLoc().getLocalSourceRange();
+           << BaseType << BaseTInfo->getTypeLoc().getSourceRange();
 
   // C++ [class.base.init]p2:
   //   [...] Unless the mem-initializer-id names a nonstatic data
@@ -4595,8 +4590,8 @@ Sema::BuildBaseInitializer(QualType BaseType, TypeSourceInfo *BaseTInfo,
         Dependent = true;
       else
         return Diag(BaseLoc, diag::err_not_direct_base_or_virtual)
-          << BaseType << Context.getTypeDeclType(ClassDecl)
-          << BaseTInfo->getTypeLoc().getLocalSourceRange();
+               << BaseType << Context.getTypeDeclType(ClassDecl)
+               << BaseTInfo->getTypeLoc().getSourceRange();
     }
   }
 
@@ -6693,7 +6688,7 @@ static bool canPassInRegisters(Sema &S, CXXRecordDecl *D,
     return false;
 
   for (const CXXMethodDecl *MD : D->methods()) {
-    if (MD->isDeleted())
+    if (MD->isDeleted() || MD->isIneligibleOrNotSelected())
       continue;
 
     auto *CD = dyn_cast<CXXConstructorDecl>(MD);
@@ -8617,10 +8612,10 @@ bool Sema::CheckExplicitlyDefaultedComparison(Scope *S, FunctionDecl *FD,
                             int(1)))
       return true;
 
-    if (llvm::find_if(RD->friends(), [&](const FriendDecl *F) {
+    if (llvm::none_of(RD->friends(), [&](const FriendDecl *F) {
           return FD->getCanonicalDecl() ==
                  F->getFriendDecl()->getCanonicalDecl();
-        }) == RD->friends().end()) {
+        })) {
       Diag(FD->getLocation(), diag::err_defaulted_comparison_not_friend)
           << int(DCK) << int(0) << RD;
       Diag(RD->getCanonicalDecl()->getLocation(), diag::note_declared_at);
@@ -9772,11 +9767,22 @@ bool Sema::SpecialMemberIsTrivial(CXXMethodDecl *MD, CXXSpecialMember CSM,
 
   case CXXCopyConstructor:
   case CXXCopyAssignment: {
-    // Trivial copy operations always have const, non-volatile parameter types.
-    ConstArg = true;
     const ParmVarDecl *Param0 = MD->getParamDecl(0);
     const ReferenceType *RT = Param0->getType()->getAs<ReferenceType>();
-    if (!RT || RT->getPointeeType().getCVRQualifiers() != Qualifiers::Const) {
+
+    // When ClangABICompat14 is true, CXX copy constructors will only be trivial
+    // if they are not user-provided and their parameter-type-list is equivalent
+    // to the parameter-type-list of an implicit declaration. This maintains the
+    // behavior before dr2171 was implemented.
+    //
+    // Otherwise, if ClangABICompat14 is false, All copy constructors can be
+    // trivial, if they are not user-provided, regardless of the qualifiers on
+    // the reference type.
+    const bool ClangABICompat14 = Context.getLangOpts().getClangABICompat() <=
+                                  LangOptions::ClangABI::Ver14;
+    if (!RT ||
+        ((RT->getPointeeType().getCVRQualifiers() != Qualifiers::Const) &&
+         ClangABICompat14)) {
       if (Diagnose)
         Diag(Param0->getLocation(), diag::note_nontrivial_param_type)
           << Param0->getSourceRange() << Param0->getType()
@@ -9784,6 +9790,8 @@ bool Sema::SpecialMemberIsTrivial(CXXMethodDecl *MD, CXXSpecialMember CSM,
                Context.getRecordType(RD).withConst());
       return false;
     }
+
+    ConstArg = RT->getPointeeType().isConstQualified();
     break;
   }
 
@@ -10789,7 +10797,7 @@ void Sema::CheckConversionDeclarator(Declarator &D, QualType &R,
           PastFunctionChunk = true;
           break;
         }
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       case DeclaratorChunk::Array:
         NeedsTypedef = true;
         extendRight(After, Chunk.getSourceRange());
@@ -11031,7 +11039,7 @@ void Sema::CheckDeductionGuideDeclarator(Declarator &D, QualType &R,
     bool AcceptableReturnType = false;
     bool MightInstantiateToSpecialization = false;
     if (auto RetTST =
-            TSI->getTypeLoc().getAs<TemplateSpecializationTypeLoc>()) {
+            TSI->getTypeLoc().getAsAdjusted<TemplateSpecializationTypeLoc>()) {
       TemplateName SpecifiedName = RetTST.getTypePtr()->getTemplateName();
       bool TemplateMatches =
           Context.hasSameTemplateName(SpecifiedName, GuidedTemplate);
@@ -15340,8 +15348,8 @@ void Sema::DefineImplicitLambdaToFunctionPointerConversion(
                                        VK_LValue, Conv->getLocation());
   assert(FunctionRef && "Can't refer to __invoke function?");
   Stmt *Return = BuildReturnStmt(Conv->getLocation(), FunctionRef).get();
-  Conv->setBody(CompoundStmt::Create(Context, Return, Conv->getLocation(),
-                                     Conv->getLocation()));
+  Conv->setBody(CompoundStmt::Create(Context, Return, FPOptionsOverride(),
+                                     Conv->getLocation(), Conv->getLocation()));
   Conv->markUsed(Context);
   Conv->setReferenced();
 
@@ -15395,8 +15403,8 @@ void Sema::DefineImplicitLambdaToBlockPointerConversion(
 
   // Set the body of the conversion function.
   Stmt *ReturnS = Return.get();
-  Conv->setBody(CompoundStmt::Create(Context, ReturnS, Conv->getLocation(),
-                                     Conv->getLocation()));
+  Conv->setBody(CompoundStmt::Create(Context, ReturnS, FPOptionsOverride(),
+                                     Conv->getLocation(), Conv->getLocation()));
   Conv->markUsed(Context);
 
   // We're done; notify the mutation listener, if any.
@@ -15416,7 +15424,7 @@ static bool hasOneRealArgument(MultiExprArg Args) {
     if (!Args[1]->isDefaultArgument())
       return false;
 
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case 1:
     return !Args[0]->isDefaultArgument();
   }
@@ -16261,7 +16269,7 @@ Decl *Sema::ActOnStartLinkageSpecification(Scope *S, SourceLocation ExternLoc,
                                            Expr *LangStr,
                                            SourceLocation LBraceLoc) {
   StringLiteral *Lit = cast<StringLiteral>(LangStr);
-  if (!Lit->isAscii()) {
+  if (!Lit->isOrdinary()) {
     Diag(LangStr->getExprLoc(), diag::err_language_linkage_spec_not_ascii)
       << LangStr->getSourceRange();
     return nullptr;
@@ -16297,7 +16305,12 @@ Decl *Sema::ActOnStartLinkageSpecification(Scope *S, SourceLocation ExternLoc,
   if (getLangOpts().CPlusPlusModules && isCurrentModulePurview()) {
     Module *GlobalModule =
         PushGlobalModuleFragment(ExternLoc, /*IsImplicit=*/true);
-    D->setModuleOwnershipKind(Decl::ModuleOwnershipKind::ModulePrivate);
+    /// According to [module.reach]p3.2,
+    /// The declaration in global module fragment is reachable if it is not
+    /// discarded. And the discarded declaration should be deleted. So it
+    /// doesn't matter mark the declaration in global module fragment as
+    /// reachable here.
+    D->setModuleOwnershipKind(Decl::ModuleOwnershipKind::ReachableWhenImported);
     D->setLocalOwningModule(GlobalModule);
   }
 
@@ -16574,8 +16587,13 @@ Decl *Sema::BuildStaticAssertDeclaration(SourceLocation StaticAssertLoc,
     if (!Failed && !Cond) {
       SmallString<256> MsgBuffer;
       llvm::raw_svector_ostream Msg(MsgBuffer);
-      if (AssertMessage)
-        AssertMessage->printPretty(Msg, nullptr, getPrintingPolicy());
+      if (AssertMessage) {
+        const auto *MsgStr = cast<StringLiteral>(AssertMessage);
+        if (MsgStr->isOrdinary())
+          Msg << MsgStr->getString();
+        else
+          MsgStr->printPretty(Msg, nullptr, getPrintingPolicy());
+      }
 
       Expr *InnerCond = nullptr;
       std::string InnerCondDescription;
@@ -16627,7 +16645,7 @@ FriendDecl *Sema::CheckFriendTypeDecl(SourceLocation LocStart,
   assert(TSInfo && "NULL TypeSourceInfo for friend type declaration");
 
   QualType T = TSInfo->getType();
-  SourceRange TypeRange = TSInfo->getTypeLoc().getLocalSourceRange();
+  SourceRange TypeRange = TSInfo->getTypeLoc().getSourceRange();
 
   // C++03 [class.friend]p2:
   //   An elaborated-type-specifier shall be used in a friend declaration
@@ -16860,7 +16878,8 @@ Decl *Sema::ActOnFriendTypeDecl(Scope *S, const DeclSpec &DS,
   // Try to convert the decl specifier to a type.  This works for
   // friend templates because ActOnTag never produces a ClassTemplateDecl
   // for a TUK_Friend.
-  Declarator TheDeclarator(DS, DeclaratorContext::Member);
+  Declarator TheDeclarator(DS, ParsedAttributesView::none(),
+                           DeclaratorContext::Member);
   TypeSourceInfo *TSI = GetTypeForDeclarator(TheDeclarator, S);
   QualType T = TSI->getType();
   if (TheDeclarator.isInvalidType())
@@ -18099,7 +18118,7 @@ bool Sema::checkThisInStaticMemberFunctionExceptionSpec(CXXMethodDecl *Method) {
   case EST_NoexceptTrue:
     if (!Finder.TraverseStmt(Proto->getNoexceptExpr()))
       return true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case EST_Dynamic:
     for (const auto &E : Proto->exceptions()) {

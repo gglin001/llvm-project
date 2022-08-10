@@ -719,8 +719,7 @@ bool SystemZTargetLowering::isFMAFasterThanFMulAndFAdd(
 // such as VGM, VGMB or VREPI.
 bool SystemZVectorConstantInfo::isVectorConstantLegal(
     const SystemZSubtarget &Subtarget) {
-  const SystemZInstrInfo *TII =
-      static_cast<const SystemZInstrInfo *>(Subtarget.getInstrInfo());
+  const SystemZInstrInfo *TII = Subtarget.getInstrInfo();
   if (!Subtarget.hasVector() ||
       (isFP128 && !Subtarget.hasVectorEnhancements1()))
     return false;
@@ -1405,8 +1404,12 @@ static SDValue convertValVTToLocVT(SelectionDAG &DAG, const SDLoc &DL,
     return DAG.getNode(ISD::ANY_EXTEND, DL, VA.getLocVT(), Value);
   case CCValAssign::BCvt: {
     assert(VA.getLocVT() == MVT::i64 || VA.getLocVT() == MVT::i128);
-    assert(VA.getValVT().isVector() || VA.getValVT() == MVT::f64 ||
-           VA.getValVT() == MVT::f128);
+    assert(VA.getValVT().isVector() || VA.getValVT() == MVT::f32 ||
+           VA.getValVT() == MVT::f64 || VA.getValVT() == MVT::f128);
+    // For an f32 vararg we need to first promote it to an f64 and then
+    // bitcast it to an i64.
+    if (VA.getValVT() == MVT::f32 && VA.getLocVT() == MVT::i64)
+      Value = DAG.getNode(ISD::FP_EXTEND, DL, MVT::f64, Value);
     MVT BitCastToType = VA.getValVT().isVector() && VA.getLocVT() == MVT::i64
                             ? MVT::v2i64
                             : VA.getLocVT();
@@ -3034,7 +3037,7 @@ SDValue SystemZTargetLowering::lowerVectorSETCC(SelectionDAG &DAG,
     // Handle tests for order using (or (ogt y x) (oge x y)).
   case ISD::SETUO:
     Invert = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ISD::SETO: {
     assert(IsFP && "Unexpected integer comparison");
     SDValue LT = getVectorCmp(DAG, getVectorComparison(ISD::SETOGT, Mode),
@@ -3051,7 +3054,7 @@ SDValue SystemZTargetLowering::lowerVectorSETCC(SelectionDAG &DAG,
     // Handle <> tests using (or (ogt y x) (ogt x y)).
   case ISD::SETUEQ:
     Invert = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ISD::SETONE: {
     assert(IsFP && "Unexpected integer comparison");
     SDValue LT = getVectorCmp(DAG, getVectorComparison(ISD::SETOGT, Mode),
@@ -7317,7 +7320,7 @@ SystemZTargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
     case Intrinsic::s390_vupllh:
     case Intrinsic::s390_vupllf:
       IsLogical = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case Intrinsic::s390_vuphb:  // VECTOR UNPACK HIGH
     case Intrinsic::s390_vuphh:
     case Intrinsic::s390_vuphf:
@@ -7588,8 +7591,7 @@ MachineBasicBlock *
 SystemZTargetLowering::emitSelect(MachineInstr &MI,
                                   MachineBasicBlock *MBB) const {
   assert(isSelectPseudo(MI) && "Bad call to emitSelect()");
-  const SystemZInstrInfo *TII =
-      static_cast<const SystemZInstrInfo *>(Subtarget.getInstrInfo());
+  const SystemZInstrInfo *TII = Subtarget.getInstrInfo();
 
   unsigned CCValid = MI.getOperand(3).getImm();
   unsigned CCMask = MI.getOperand(4).getImm();
@@ -7685,8 +7687,7 @@ MachineBasicBlock *SystemZTargetLowering::emitCondStore(MachineInstr &MI,
                                                         unsigned StoreOpcode,
                                                         unsigned STOCOpcode,
                                                         bool Invert) const {
-  const SystemZInstrInfo *TII =
-      static_cast<const SystemZInstrInfo *>(Subtarget.getInstrInfo());
+  const SystemZInstrInfo *TII = Subtarget.getInstrInfo();
 
   Register SrcReg = MI.getOperand(0).getReg();
   MachineOperand Base = MI.getOperand(1);
@@ -7777,8 +7778,7 @@ MachineBasicBlock *SystemZTargetLowering::emitAtomicLoadBinary(
     MachineInstr &MI, MachineBasicBlock *MBB, unsigned BinOpcode,
     unsigned BitSize, bool Invert) const {
   MachineFunction &MF = *MBB->getParent();
-  const SystemZInstrInfo *TII =
-      static_cast<const SystemZInstrInfo *>(Subtarget.getInstrInfo());
+  const SystemZInstrInfo *TII = Subtarget.getInstrInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   bool IsSubWord = (BitSize < 32);
 
@@ -7896,8 +7896,7 @@ MachineBasicBlock *SystemZTargetLowering::emitAtomicLoadMinMax(
     MachineInstr &MI, MachineBasicBlock *MBB, unsigned CompareOpcode,
     unsigned KeepOldMask, unsigned BitSize) const {
   MachineFunction &MF = *MBB->getParent();
-  const SystemZInstrInfo *TII =
-      static_cast<const SystemZInstrInfo *>(Subtarget.getInstrInfo());
+  const SystemZInstrInfo *TII = Subtarget.getInstrInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   bool IsSubWord = (BitSize < 32);
 
@@ -8010,8 +8009,7 @@ MachineBasicBlock *
 SystemZTargetLowering::emitAtomicCmpSwapW(MachineInstr &MI,
                                           MachineBasicBlock *MBB) const {
   MachineFunction &MF = *MBB->getParent();
-  const SystemZInstrInfo *TII =
-      static_cast<const SystemZInstrInfo *>(Subtarget.getInstrInfo());
+  const SystemZInstrInfo *TII = Subtarget.getInstrInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
 
   // Extract the operands.  Base can be a register or a frame index.
@@ -8127,8 +8125,7 @@ MachineBasicBlock *
 SystemZTargetLowering::emitPair128(MachineInstr &MI,
                                    MachineBasicBlock *MBB) const {
   MachineFunction &MF = *MBB->getParent();
-  const SystemZInstrInfo *TII =
-      static_cast<const SystemZInstrInfo *>(Subtarget.getInstrInfo());
+  const SystemZInstrInfo *TII = Subtarget.getInstrInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   DebugLoc DL = MI.getDebugLoc();
 
@@ -8155,8 +8152,7 @@ MachineBasicBlock *SystemZTargetLowering::emitExt128(MachineInstr &MI,
                                                      MachineBasicBlock *MBB,
                                                      bool ClearEven) const {
   MachineFunction &MF = *MBB->getParent();
-  const SystemZInstrInfo *TII =
-      static_cast<const SystemZInstrInfo *>(Subtarget.getInstrInfo());
+  const SystemZInstrInfo *TII = Subtarget.getInstrInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   DebugLoc DL = MI.getDebugLoc();
 
@@ -8187,8 +8183,7 @@ SystemZTargetLowering::emitMemMemWrapper(MachineInstr &MI,
                                          MachineBasicBlock *MBB,
                                          unsigned Opcode, bool IsMemset) const {
   MachineFunction &MF = *MBB->getParent();
-  const SystemZInstrInfo *TII =
-      static_cast<const SystemZInstrInfo *>(Subtarget.getInstrInfo());
+  const SystemZInstrInfo *TII = Subtarget.getInstrInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   DebugLoc DL = MI.getDebugLoc();
 
@@ -8542,8 +8537,7 @@ SystemZTargetLowering::emitMemMemWrapper(MachineInstr &MI,
 MachineBasicBlock *SystemZTargetLowering::emitStringWrapper(
     MachineInstr &MI, MachineBasicBlock *MBB, unsigned Opcode) const {
   MachineFunction &MF = *MBB->getParent();
-  const SystemZInstrInfo *TII =
-      static_cast<const SystemZInstrInfo *>(Subtarget.getInstrInfo());
+  const SystemZInstrInfo *TII = Subtarget.getInstrInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   DebugLoc DL = MI.getDebugLoc();
 
@@ -8648,8 +8642,7 @@ MachineBasicBlock *SystemZTargetLowering::emitLoadAndTestCmp0(
     MachineInstr &MI, MachineBasicBlock *MBB, unsigned Opcode) const {
   MachineFunction &MF = *MBB->getParent();
   MachineRegisterInfo *MRI = &MF.getRegInfo();
-  const SystemZInstrInfo *TII =
-      static_cast<const SystemZInstrInfo *>(Subtarget.getInstrInfo());
+  const SystemZInstrInfo *TII = Subtarget.getInstrInfo();
   DebugLoc DL = MI.getDebugLoc();
 
   Register SrcReg = MI.getOperand(0).getReg();
@@ -8672,8 +8665,7 @@ MachineBasicBlock *SystemZTargetLowering::emitProbedAlloca(
     MachineInstr &MI, MachineBasicBlock *MBB) const {
   MachineFunction &MF = *MBB->getParent();
   MachineRegisterInfo *MRI = &MF.getRegInfo();
-  const SystemZInstrInfo *TII =
-      static_cast<const SystemZInstrInfo *>(Subtarget.getInstrInfo());
+  const SystemZInstrInfo *TII = Subtarget.getInstrInfo();
   DebugLoc DL = MI.getDebugLoc();
   const unsigned ProbeSize = getStackProbeSize(MF);
   Register DstReg = MI.getOperand(0).getReg();
