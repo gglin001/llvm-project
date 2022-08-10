@@ -2,7 +2,8 @@
     // used in docker container
     // https://github.com/gglin001/cpp_demos/blob/master/Dockerfile
     "cmake.configureArgs": [
-        "-DLLVM_ENABLE_PROJECTS=mlir;clang;clang-tools-extra",
+        "-DLLVM_ENABLE_PROJECTS=mlir",
+        // "-DLLVM_ENABLE_PROJECTS=mlir;clang;clang-tools-extra",
         // "-DLLVM_ENABLE_RUNTIMES=libcxx;libcxxabi"
     ],
     "cmake.configureSettings": {
@@ -35,7 +36,8 @@
         "MLIR_BINDINGS_PYTHON_ENABLED": "ON",
         "MLIR_INCLUDE_DOCS": "OFF",
         "MLIR_INCLUDE_TESTS": "ON",
-        "CMAKE_VERBOSE_MAKEFILE": "OFF",
+        // "CMAKE_VERBOSE_MAKEFILE": "OFF",
+        "LLVM_ENABLE_ZSTD": "OFF",
         // "Python3_EXECUTABLE": "/opt/conda/envs/py38/bin/python",
         // "CMAKE_C_LINK_EXECUTABLE": "/opt/conda/envs/py38/x86_64-conda-linux-gnu/bin/ld",
         // "CMAKE_CXX_LINK_EXECUTABLE": "/opt/conda/envs/py38/x86_64-conda-linux-gnu/bin/ld",
@@ -43,13 +45,6 @@
     "cmake.sourceDirectory": "${workspaceFolder}/llvm",
     // https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-mlir
     // "mlir.server_path": "/opt/conda/envs/py38/bin/mlir-lsp-server",
-    // use https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools
-    // "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
-    // "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-    // "C_Cpp.codeAnalysis.clangTidy.enabled": true,
-    // "C_Cpp.codeAnalysis.clangTidy.path": "/opt/conda/envs/py38/bin/clang-tidy",
-    // "C_Cpp.intelliSenseEngine": "Default",
-    // "C_Cpp.intelliSenseCachePath": "${workspaceFolder}/build/.vsc_cpp_cache",
     "clangd.path": "/opt/conda/envs/py38/bin/clangd",
     "terminal.integrated.env.linux": {
         // "PATH": "${workspaceFolder}/build/bin:${env:PATH}",
