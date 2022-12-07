@@ -455,7 +455,7 @@ private:
 
   lldb::DynamicValueType m_use_dynamic = lldb::eNoDynamicValues;
   Timeout<std::micro> m_timeout = default_timeout;
-  Timeout<std::micro> m_one_thread_timeout = llvm::None;
+  Timeout<std::micro> m_one_thread_timeout = std::nullopt;
   lldb::ExpressionCancelCallback m_cancel_callback = nullptr;
   void *m_cancel_callback_baton = nullptr;
   // If m_pound_line_file is not empty and m_pound_line_line is non-zero, use
@@ -1119,11 +1119,12 @@ public:
 
   PathMappingList &GetImageSearchPathList();
 
-  llvm::Expected<TypeSystem &>
+  llvm::Expected<lldb::TypeSystemSP>
   GetScratchTypeSystemForLanguage(lldb::LanguageType language,
                                   bool create_on_demand = true);
 
-  std::vector<TypeSystem *> GetScratchTypeSystems(bool create_on_demand = true);
+  std::vector<lldb::TypeSystemSP>
+  GetScratchTypeSystems(bool create_on_demand = true);
 
   PersistentExpressionState *
   GetPersistentExpressionStateForLanguage(lldb::LanguageType language);

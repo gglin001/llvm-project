@@ -45,6 +45,7 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Support/RWMutex.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <iterator>
@@ -893,7 +894,8 @@ public:
   BinaryBasicBlock *getLandingPadBBFor(const BinaryBasicBlock &BB,
                                        const MCInst &InvokeInst) const {
     assert(BC.MIB->isInvoke(InvokeInst) && "must be invoke instruction");
-    const Optional<MCPlus::MCLandingPad> LP = BC.MIB->getEHInfo(InvokeInst);
+    const std::optional<MCPlus::MCLandingPad> LP =
+        BC.MIB->getEHInfo(InvokeInst);
     if (LP && LP->first) {
       BinaryBasicBlock *LBB = BB.getLandingPad(LP->first);
       assert(LBB && "Landing pad should be defined");
@@ -979,7 +981,7 @@ public:
       if (Callback(StringRef(Name)))
         return StringRef(Name);
 
-    return NoneType();
+    return std::nullopt;
   }
 
   /// Check if (possibly one out of many) function name matches the given
@@ -1166,7 +1168,7 @@ public:
 
     MCSymbol *&FunctionEndLabel = FunctionEndLabels[LabelIndex];
     if (!FunctionEndLabel) {
-      std::unique_lock<std::shared_timed_mutex> Lock(BC.CtxMutex);
+      std::unique_lock<llvm::sys::RWMutex> Lock(BC.CtxMutex);
       if (Fragment == FragmentNum::main())
         FunctionEndLabel = BC.Ctx->createNamedTempSymbol("func_end");
       else
@@ -1317,7 +1319,7 @@ public:
   /// Return the name of the section this function originated from.
   Optional<StringRef> getOriginSectionName() const {
     if (!OriginSection)
-      return NoneType();
+      return std::nullopt;
     return OriginSection->getName();
   }
 
@@ -1490,7 +1492,7 @@ public:
   std::unique_ptr<BinaryBasicBlock>
   createBasicBlock(MCSymbol *Label = nullptr) {
     if (!Label) {
-      std::unique_lock<std::shared_timed_mutex> Lock(BC.CtxMutex);
+      std::unique_lock<llvm::sys::RWMutex> Lock(BC.CtxMutex);
       Label = BC.Ctx->createNamedTempSymbol("BB");
     }
     auto BB =
@@ -1784,6 +1786,7 @@ public:
     return *this;
   }
 
+  Align getAlign() const { return Align(Alignment); }
   uint16_t getAlignment() const { return Alignment; }
 
   BinaryFunction &setMaxAlignmentBytes(uint16_t MaxAlignBytes) {

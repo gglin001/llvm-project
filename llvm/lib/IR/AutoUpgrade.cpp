@@ -605,6 +605,21 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
                                         F->arg_begin()->getType());
       return true;
     }
+    if (Name == "aarch64.sve.bfdot.lane") {
+      NewFn = Intrinsic::getDeclaration(F->getParent(),
+                                        Intrinsic::aarch64_sve_bfdot_lane_v2);
+      return true;
+    }
+    if (Name == "aarch64.sve.bfmlalb.lane") {
+      NewFn = Intrinsic::getDeclaration(F->getParent(),
+                                        Intrinsic::aarch64_sve_bfmlalb_lane_v2);
+      return true;
+    }
+    if (Name == "aarch64.sve.bfmlalt.lane") {
+      NewFn = Intrinsic::getDeclaration(F->getParent(),
+                                        Intrinsic::aarch64_sve_bfmlalt_lane_v2);
+      return true;
+    }
     static const Regex LdRegex("^aarch64\\.sve\\.ld[234](.nxv[a-z0-9]+|$)");
     if (LdRegex.match(Name)) {
       Type *ScalarTy =
@@ -1133,7 +1148,7 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
 
   // Remangle our intrinsic since we upgrade the mangling
   auto Result = llvm::Intrinsic::remangleIntrinsicFunction(F);
-  if (Result != None) {
+  if (Result != std::nullopt) {
     NewFn = *Result;
     return true;
   }
@@ -2042,12 +2057,16 @@ static Value *UpgradeARMIntrinsicCall(StringRef Name, CallBase *CI, Function *F,
 /// Upgrade a call to an old intrinsic. All argument and return casting must be
 /// provided to seamlessly integrate with existing context.
 void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
-  Function *F = CI->getCalledFunction();
+  // Note dyn_cast to Function is not quite the same as getCalledFunction, which
+  // checks the callee's function type matches. It's likely we need to handle
+  // type changes here.
+  Function *F = dyn_cast<Function>(CI->getCalledOperand());
+  if (!F)
+    return;
+
   LLVMContext &C = CI->getContext();
   IRBuilder<> Builder(C);
   Builder.SetInsertPoint(CI->getParent(), CI->getIterator());
-
-  assert(F && "Intrinsic call is not direct?");
 
   if (!NewFn) {
     // Get the Function's name.
@@ -3909,21 +3928,29 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     }
 
     // This must be an upgrade from a named to a literal struct.
-    auto *OldST = cast<StructType>(CI->getType());
-    assert(OldST != NewFn->getReturnType() && "Return type must have changed");
-    assert(OldST->getNumElements() ==
-               cast<StructType>(NewFn->getReturnType())->getNumElements() &&
-           "Must have same number of elements");
+    if (auto *OldST = dyn_cast<StructType>(CI->getType())) {
+      assert(OldST != NewFn->getReturnType() &&
+             "Return type must have changed");
+      assert(OldST->getNumElements() ==
+                 cast<StructType>(NewFn->getReturnType())->getNumElements() &&
+             "Must have same number of elements");
 
-    SmallVector<Value *> Args(CI->args());
-    Value *NewCI = Builder.CreateCall(NewFn, Args);
-    Value *Res = PoisonValue::get(OldST);
-    for (unsigned Idx = 0; Idx < OldST->getNumElements(); ++Idx) {
-      Value *Elem = Builder.CreateExtractValue(NewCI, Idx);
-      Res = Builder.CreateInsertValue(Res, Elem, Idx);
+      SmallVector<Value *> Args(CI->args());
+      Value *NewCI = Builder.CreateCall(NewFn, Args);
+      Value *Res = PoisonValue::get(OldST);
+      for (unsigned Idx = 0; Idx < OldST->getNumElements(); ++Idx) {
+        Value *Elem = Builder.CreateExtractValue(NewCI, Idx);
+        Res = Builder.CreateInsertValue(Res, Elem, Idx);
+      }
+      CI->replaceAllUsesWith(Res);
+      CI->eraseFromParent();
+      return;
     }
-    CI->replaceAllUsesWith(Res);
-    CI->eraseFromParent();
+
+    // We're probably about to produce something invalid. Let the verifier catch
+    // it instead of dying here.
+    CI->setCalledOperand(
+        ConstantExpr::getPointerCast(NewFn, CI->getCalledOperand()->getType()));
     return;
   };
   CallInst *NewCall = nullptr;
@@ -3940,6 +3967,16 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
   case Intrinsic::arm_neon_vst3lane:
   case Intrinsic::arm_neon_vst4lane: {
     SmallVector<Value *, 4> Args(CI->args());
+    NewCall = Builder.CreateCall(NewFn, Args);
+    break;
+  }
+  case Intrinsic::aarch64_sve_bfmlalb_lane_v2:
+  case Intrinsic::aarch64_sve_bfmlalt_lane_v2:
+  case Intrinsic::aarch64_sve_bfdot_lane_v2: {
+    LLVMContext &Ctx = F->getParent()->getContext();
+    SmallVector<Value *, 4> Args(CI->args());
+    Args[3] = ConstantInt::get(Type::getInt32Ty(Ctx),
+                               cast<ConstantInt>(Args[3])->getZExtValue());
     NewCall = Builder.CreateCall(NewFn, Args);
     break;
   }

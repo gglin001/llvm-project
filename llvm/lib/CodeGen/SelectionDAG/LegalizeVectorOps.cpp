@@ -730,6 +730,9 @@ void VectorLegalizer::Expand(SDNode *Node, SmallVectorImpl<SDValue> &Results) {
   case ISD::BSWAP:
     Results.push_back(ExpandBSWAP(Node));
     return;
+  case ISD::VP_BSWAP:
+    Results.push_back(TLI.expandVPBSWAP(Node, DAG));
+    return;
   case ISD::VSELECT:
     Results.push_back(ExpandVSELECT(Node));
     return;
@@ -806,7 +809,9 @@ void VectorLegalizer::Expand(SDNode *Node, SmallVectorImpl<SDValue> &Results) {
     }
     break;
   case ISD::FSHL:
+  case ISD::VP_FSHL:
   case ISD::FSHR:
+  case ISD::VP_FSHR:
     if (SDValue Expanded = TLI.expandFunnelShift(Node, DAG)) {
       Results.push_back(Expanded);
       return;

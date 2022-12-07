@@ -103,8 +103,13 @@ public:
       }
     }
 
-    // TODO: Check that the current data pointer is actually at the expected
-    // alignment.
+    // Ensure the data iterator is now aligned. This case is unlikely because we
+    // *just* went through the effort to align the data iterator.
+    if (LLVM_UNLIKELY(!llvm::isAddrAligned(llvm::Align(alignment), dataIt))) {
+      return emitError("expected data iterator aligned to ", alignment,
+                       ", but got pointer: '0x" +
+                           llvm::utohexstr((uintptr_t)dataIt) + "'");
+    }
 
     return success();
   }
@@ -446,7 +451,8 @@ struct BytecodeOperationName {
   BytecodeOperationName(BytecodeDialect *dialect, StringRef name)
       : dialect(dialect), name(name) {}
 
-  /// The loaded operation name, or None if it hasn't been processed yet.
+  /// The loaded operation name, or std::nullopt if it hasn't been processed
+  /// yet.
   Optional<OperationName> opName;
 
   /// The dialect that owns this operation name.

@@ -1661,7 +1661,7 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   }
 
   GlobalAddressSDNode *Func = dyn_cast<GlobalAddressSDNode>(Callee.getNode());
-  MaybeAlign retAlignment = None;
+  MaybeAlign retAlignment = std::nullopt;
 
   // Handle Result
   if (Ins.size() > 0) {
@@ -1790,7 +1790,7 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   }
 
   SmallVector<SDValue, 16> ProxyRegOps;
-  SmallVector<Optional<MVT>, 16> ProxyRegTruncates;
+  SmallVector<std::optional<MVT>, 16> ProxyRegTruncates;
 
   // Generate loads from param memory/moves from registers for result
   if (Ins.size() > 0) {
@@ -1873,9 +1873,9 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
           ProxyRegOps.push_back(RetVal.getValue(j));
 
           if (needTruncate)
-            ProxyRegTruncates.push_back(Optional<MVT>(Ins[VecIdx + j].VT));
+            ProxyRegTruncates.push_back(std::optional<MVT>(Ins[VecIdx + j].VT));
           else
-            ProxyRegTruncates.push_back(Optional<MVT>());
+            ProxyRegTruncates.push_back(std::optional<MVT>());
         }
 
         Chain = RetVal.getValue(NumElts);
@@ -4340,8 +4340,13 @@ Align NVPTXTargetLowering::getFunctionParamOptimizedAlign(
   const uint64_t ABITypeAlign = DL.getABITypeAlign(ArgTy).value();
 
   // If a function has linkage different from internal or private, we
-  // must use default ABI alignment as external users rely on it.
-  if (!(F && F->hasLocalLinkage()))
+  // must use default ABI alignment as external users rely on it. Same
+  // for a function that may be called from a function pointer.
+  if (!F || !F->hasLocalLinkage() ||
+      F->hasAddressTaken(/*Users=*/nullptr,
+                         /*IgnoreCallbackUses=*/false,
+                         /*IgnoreAssumeLikeCalls=*/true,
+                         /*IgnoreLLVMUsed=*/true))
     return Align(ABITypeAlign);
 
   assert(!isKernelFunction(*F) && "Expect kernels to have non-local linkage");

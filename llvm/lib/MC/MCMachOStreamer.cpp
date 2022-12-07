@@ -107,9 +107,9 @@ public:
                         unsigned ByteAlignment) override;
 
   void emitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                             unsigned ByteAlignment) override;
+                             Align ByteAlignment) override;
   void emitZerofill(MCSection *Section, MCSymbol *Symbol = nullptr,
-                    uint64_t Size = 0, unsigned ByteAlignment = 0,
+                    uint64_t Size = 0, Align ByteAlignment = Align(1),
                     SMLoc Loc = SMLoc()) override;
   void emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol, uint64_t Size,
                       unsigned ByteAlignment = 0) override;
@@ -358,6 +358,7 @@ bool MCMachOStreamer::emitSymbolAttribute(MCSymbol *Sym,
   case MCSA_Local:
   case MCSA_LGlobal:
   case MCSA_Exported:
+  case MCSA_Memtag:
     return false;
 
   case MCSA_Global:
@@ -440,14 +441,14 @@ void MCMachOStreamer::emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
 }
 
 void MCMachOStreamer::emitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                                            unsigned ByteAlignment) {
+                                            Align ByteAlignment) {
   // '.lcomm' is equivalent to '.zerofill'.
   return emitZerofill(getContext().getObjectFileInfo()->getDataBSSSection(),
                       Symbol, Size, ByteAlignment);
 }
 
 void MCMachOStreamer::emitZerofill(MCSection *Section, MCSymbol *Symbol,
-                                   uint64_t Size, unsigned ByteAlignment,
+                                   uint64_t Size, Align ByteAlignment,
                                    SMLoc Loc) {
   // On darwin all virtual sections have zerofill type. Disallow the usage of
   // .zerofill in non-virtual functions. If something similar is needed, use
@@ -476,7 +477,7 @@ void MCMachOStreamer::emitZerofill(MCSection *Section, MCSymbol *Symbol,
 // .zerofill directive this doesn't actually switch sections on us.
 void MCMachOStreamer::emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
                                      uint64_t Size, unsigned ByteAlignment) {
-  emitZerofill(Section, Symbol, Size, ByteAlignment);
+  emitZerofill(Section, Symbol, Size, Align(ByteAlignment));
 }
 
 void MCMachOStreamer::emitInstToData(const MCInst &Inst,

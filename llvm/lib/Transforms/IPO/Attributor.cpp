@@ -54,11 +54,13 @@
 #endif
 
 #include <cassert>
+#include <optional>
 #include <string>
 
 using namespace llvm;
 
 #define DEBUG_TYPE "attributor"
+#define VERBOSE_DEBUG_TYPE DEBUG_TYPE "-verbose"
 
 DEBUG_COUNTER(ManifestDBGCounter, "attributor-manifest",
               "Determine what attributes are manifested in the IR");
@@ -303,9 +305,10 @@ Value *AA::getWithType(Value &V, Type &Ty) {
   return nullptr;
 }
 
-Optional<Value *>
-AA::combineOptionalValuesInAAValueLatice(const Optional<Value *> &A,
-                                         const Optional<Value *> &B, Type *Ty) {
+std::optional<Value *>
+AA::combineOptionalValuesInAAValueLatice(const std::optional<Value *> &A,
+                                         const std::optional<Value *> &B,
+                                         Type *Ty) {
   if (A == B)
     return A;
   if (!B)
@@ -389,7 +392,8 @@ static bool getPotentialCopiesOfMemoryValue(
 
     bool NullOnly = true;
     bool NullRequired = false;
-    auto CheckForNullOnlyAndUndef = [&](Optional<Value *> V, bool IsExact) {
+    auto CheckForNullOnlyAndUndef = [&](std::optional<Value *> V,
+                                        bool IsExact) {
       if (!V || *V == nullptr)
         NullOnly = false;
       else if (isa<UndefValue>(*V))
@@ -736,7 +740,7 @@ Argument *IRPosition::getAssociatedArgument() const {
   // values and the ones in callbacks. If a callback was found that makes use
   // of the underlying call site operand, we want the corresponding callback
   // callee argument and not the direct callee argument.
-  Optional<Argument *> CBCandidateArg;
+  std::optional<Argument *> CBCandidateArg;
   SmallVector<const Use *, 4> CallbackUses;
   const auto &CB = cast<CallBase>(getAnchorValue());
   AbstractCallSite::getCallbackUses(CB, CallbackUses);
@@ -1067,17 +1071,17 @@ void IRPosition::verify() {
 #endif
 }
 
-Optional<Constant *>
+std::optional<Constant *>
 Attributor::getAssumedConstant(const IRPosition &IRP,
                                const AbstractAttribute &AA,
                                bool &UsedAssumedInformation) {
   // First check all callbacks provided by outside AAs. If any of them returns
-  // a non-null value that is different from the associated value, or None, we
-  // assume it's simplified.
+  // a non-null value that is different from the associated value, or
+  // std::nullopt, we assume it's simplified.
   for (auto &CB : SimplificationCallbacks.lookup(IRP)) {
-    Optional<Value *> SimplifiedV = CB(IRP, &AA, UsedAssumedInformation);
+    std::optional<Value *> SimplifiedV = CB(IRP, &AA, UsedAssumedInformation);
     if (!SimplifiedV)
-      return llvm::None;
+      return std::nullopt;
     if (isa_and_nonnull<Constant>(*SimplifiedV))
       return cast<Constant>(*SimplifiedV);
     return nullptr;
@@ -1089,7 +1093,7 @@ Attributor::getAssumedConstant(const IRPosition &IRP,
                                  AA::ValueScope::Interprocedural,
                                  UsedAssumedInformation)) {
     if (Values.empty())
-      return llvm::None;
+      return std::nullopt;
     if (auto *C = dyn_cast_or_null<Constant>(
             AAPotentialValues::getSingleValue(*this, AA, IRP, Values)))
       return C;
@@ -1097,13 +1101,12 @@ Attributor::getAssumedConstant(const IRPosition &IRP,
   return nullptr;
 }
 
-Optional<Value *> Attributor::getAssumedSimplified(const IRPosition &IRP,
-                                                   const AbstractAttribute *AA,
-                                                   bool &UsedAssumedInformation,
-                                                   AA::ValueScope S) {
+std::optional<Value *> Attributor::getAssumedSimplified(
+    const IRPosition &IRP, const AbstractAttribute *AA,
+    bool &UsedAssumedInformation, AA::ValueScope S) {
   // First check all callbacks provided by outside AAs. If any of them returns
-  // a non-null value that is different from the associated value, or None, we
-  // assume it's simplified.
+  // a non-null value that is different from the associated value, or
+  // std::nullopt, we assume it's simplified.
   for (auto &CB : SimplificationCallbacks.lookup(IRP))
     return CB(IRP, AA, UsedAssumedInformation);
 
@@ -1111,7 +1114,7 @@ Optional<Value *> Attributor::getAssumedSimplified(const IRPosition &IRP,
   if (!getAssumedSimplifiedValues(IRP, AA, Values, S, UsedAssumedInformation))
     return &IRP.getAssociatedValue();
   if (Values.empty())
-    return llvm::None;
+    return std::nullopt;
   if (AA)
     if (Value *V = AAPotentialValues::getSingleValue(*this, *AA, IRP, Values))
       return V;
@@ -1126,11 +1129,11 @@ bool Attributor::getAssumedSimplifiedValues(
     SmallVectorImpl<AA::ValueAndContext> &Values, AA::ValueScope S,
     bool &UsedAssumedInformation) {
   // First check all callbacks provided by outside AAs. If any of them returns
-  // a non-null value that is different from the associated value, or None, we
-  // assume it's simplified.
+  // a non-null value that is different from the associated value, or
+  // std::nullopt, we assume it's simplified.
   const auto &SimplificationCBs = SimplificationCallbacks.lookup(IRP);
   for (const auto &CB : SimplificationCBs) {
-    Optional<Value *> CBResult = CB(IRP, AA, UsedAssumedInformation);
+    std::optional<Value *> CBResult = CB(IRP, AA, UsedAssumedInformation);
     if (!CBResult.has_value())
       continue;
     Value *V = CBResult.value();
@@ -1154,8 +1157,8 @@ bool Attributor::getAssumedSimplifiedValues(
   return true;
 }
 
-Optional<Value *> Attributor::translateArgumentToCallSiteContent(
-    Optional<Value *> V, CallBase &CB, const AbstractAttribute &AA,
+std::optional<Value *> Attributor::translateArgumentToCallSiteContent(
+    std::optional<Value *> V, CallBase &CB, const AbstractAttribute &AA,
     bool &UsedAssumedInformation) {
   if (!V)
     return V;
@@ -1384,7 +1387,7 @@ bool Attributor::checkForAllUses(
     const Use *U = Worklist.pop_back_val();
     if (isa<PHINode>(U->getUser()) && !Visited.insert(U).second)
       continue;
-    LLVM_DEBUG({
+    DEBUG_WITH_TYPE(VERBOSE_DEBUG_TYPE, {
       if (auto *Fn = dyn_cast<Function>(U->getUser()))
         dbgs() << "[Attributor] Check use: " << **U << " in " << Fn->getName()
                << "\n";
@@ -1395,11 +1398,13 @@ bool Attributor::checkForAllUses(
     bool UsedAssumedInformation = false;
     if (isAssumedDead(*U, &QueryingAA, LivenessAA, UsedAssumedInformation,
                       CheckBBLivenessOnly, LivenessDepClass)) {
-      LLVM_DEBUG(dbgs() << "[Attributor] Dead use, skip!\n");
+      DEBUG_WITH_TYPE(VERBOSE_DEBUG_TYPE,
+                      dbgs() << "[Attributor] Dead use, skip!\n");
       continue;
     }
     if (IgnoreDroppableUses && U->getUser()->isDroppable()) {
-      LLVM_DEBUG(dbgs() << "[Attributor] Droppable user, skip!\n");
+      DEBUG_WITH_TYPE(VERBOSE_DEBUG_TYPE,
+                      dbgs() << "[Attributor] Droppable user, skip!\n");
       continue;
     }
 
@@ -1411,9 +1416,11 @@ bool Attributor::checkForAllUses(
         if (AA::getPotentialCopiesOfStoredValue(
                 *this, *SI, PotentialCopies, QueryingAA, UsedAssumedInformation,
                 /* OnlyExact */ true)) {
-          LLVM_DEBUG(dbgs() << "[Attributor] Value is stored, continue with "
-                            << PotentialCopies.size()
-                            << " potential copies instead!\n");
+          DEBUG_WITH_TYPE(VERBOSE_DEBUG_TYPE,
+                          dbgs()
+                              << "[Attributor] Value is stored, continue with "
+                              << PotentialCopies.size()
+                              << " potential copies instead!\n");
           for (Value *PotentialCopy : PotentialCopies)
             if (!AddUsers(*PotentialCopy, U))
               return false;
@@ -1486,7 +1493,7 @@ bool Attributor::checkForAllCallSites(function_ref<bool(AbstractCallSite)> Pred,
   SmallVector<const Use *, 8> Uses(make_pointer_range(Fn.uses()));
   for (unsigned u = 0; u < Uses.size(); ++u) {
     const Use &U = *Uses[u];
-    LLVM_DEBUG({
+    DEBUG_WITH_TYPE(VERBOSE_DEBUG_TYPE, {
       if (auto *Fn = dyn_cast<Function>(U))
         dbgs() << "[Attributor] Check use: " << Fn->getName() << " in "
                << *U.getUser() << "\n";
@@ -1496,15 +1503,16 @@ bool Attributor::checkForAllCallSites(function_ref<bool(AbstractCallSite)> Pred,
     });
     if (isAssumedDead(U, QueryingAA, nullptr, UsedAssumedInformation,
                       /* CheckBBLivenessOnly */ true)) {
-      LLVM_DEBUG(dbgs() << "[Attributor] Dead use, skip!\n");
+      DEBUG_WITH_TYPE(VERBOSE_DEBUG_TYPE,
+                      dbgs() << "[Attributor] Dead use, skip!\n");
       continue;
     }
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(U.getUser())) {
       if (CE->isCast() && CE->getType()->isPointerTy()) {
-        LLVM_DEBUG(
-            dbgs() << "[Attributor] Use, is constant cast expression, add "
-                   << CE->getNumUses()
-                   << " uses of that expression instead!\n");
+        DEBUG_WITH_TYPE(VERBOSE_DEBUG_TYPE, {
+          dbgs() << "[Attributor] Use, is constant cast expression, add "
+                 << CE->getNumUses() << " uses of that expression instead!\n";
+        });
         for (const Use &CEU : CE->uses())
           Uses.push_back(&CEU);
         continue;
@@ -1634,8 +1642,9 @@ static bool checkForAllInstructionsImpl(
       if (A && !CheckPotentiallyDead &&
           A->isAssumedDead(IRPosition::inst(*I), QueryingAA, LivenessAA,
                            UsedAssumedInformation, CheckBBLivenessOnly)) {
-        LLVM_DEBUG(dbgs() << "[Attributor] Instruction " << *I
-                          << " is potentially dead, skip!\n";);
+        DEBUG_WITH_TYPE(VERBOSE_DEBUG_TYPE,
+                        dbgs() << "[Attributor] Instruction " << *I
+                               << " is potentially dead, skip!\n";);
         continue;
       }
 
@@ -1744,19 +1753,22 @@ void Attributor::runTillFixpoint() {
       AbstractAttribute *InvalidAA = InvalidAAs[u];
 
       // Check the dependences to fast track invalidation.
-      LLVM_DEBUG(dbgs() << "[Attributor] InvalidAA: " << *InvalidAA << " has "
-                        << InvalidAA->Deps.size()
-                        << " required & optional dependences\n");
+      DEBUG_WITH_TYPE(VERBOSE_DEBUG_TYPE,
+                      dbgs() << "[Attributor] InvalidAA: " << *InvalidAA
+                             << " has " << InvalidAA->Deps.size()
+                             << " required & optional dependences\n");
       while (!InvalidAA->Deps.empty()) {
         const auto &Dep = InvalidAA->Deps.back();
         InvalidAA->Deps.pop_back();
         AbstractAttribute *DepAA = cast<AbstractAttribute>(Dep.getPointer());
         if (Dep.getInt() == unsigned(DepClassTy::OPTIONAL)) {
-          LLVM_DEBUG(dbgs() << " - recompute: " << *DepAA);
+          DEBUG_WITH_TYPE(VERBOSE_DEBUG_TYPE,
+                          dbgs() << " - recompute: " << *DepAA);
           Worklist.insert(DepAA);
           continue;
         }
-        LLVM_DEBUG(dbgs() << " - invalidate: " << *DepAA);
+        DEBUG_WITH_TYPE(VERBOSE_DEBUG_TYPE, dbgs()
+                                                << " - invalidate: " << *DepAA);
         DepAA->getState().indicatePessimisticFixpoint();
         assert(DepAA->getState().isAtFixpoint() && "Expected fixpoint state!");
         if (!DepAA->getState().isValidState())
@@ -2015,9 +2027,9 @@ ChangeStatus Attributor::cleanupIR() {
     // If we plan to replace NewV we need to update it at this point.
     do {
       const auto &Entry = ToBeChangedValues.lookup(NewV);
-      if (!Entry.first)
+      if (!get<0>(Entry))
         break;
-      NewV = Entry.first;
+      NewV = get<0>(Entry);
     } while (true);
 
     Instruction *I = dyn_cast<Instruction>(U->getUser());
@@ -2081,11 +2093,10 @@ ChangeStatus Attributor::cleanupIR() {
   SmallVector<Use *, 4> Uses;
   for (auto &It : ToBeChangedValues) {
     Value *OldV = It.first;
-    auto &Entry = It.second;
-    Value *NewV = Entry.first;
+    auto [NewV, Done] = It.second;
     Uses.clear();
     for (auto &U : OldV->uses())
-      if (Entry.second || !U.getUser()->isDroppable())
+      if (Done || !U.getUser()->isDroppable())
         Uses.push_back(&U);
     for (Use *U : Uses) {
       if (auto *I = dyn_cast<Instruction>(U->getUser()))
@@ -2769,7 +2780,7 @@ void InformationCache::initializeInformationCache(const Function &CF,
   // queried by abstract attributes during their initialization or update.
   // This has to happen before we create attributes.
 
-  DenseMap<const Value *, Optional<short>> AssumeUsesMap;
+  DenseMap<const Value *, std::optional<short>> AssumeUsesMap;
 
   // Add \p V to the assume uses map which track the number of uses outside of
   // "visited" assumes. If no outside uses are left the value is added to the
@@ -2780,7 +2791,7 @@ void InformationCache::initializeInformationCache(const Function &CF,
       Worklist.push_back(I);
     while (!Worklist.empty()) {
       const Instruction *I = Worklist.pop_back_val();
-      Optional<short> &NumUses = AssumeUsesMap[I];
+      std::optional<short> &NumUses = AssumeUsesMap[I];
       if (!NumUses)
         NumUses = I->getNumUses();
       NumUses = NumUses.value() - /* this assume */ 1;

@@ -15,7 +15,6 @@
 #include "llvm/Transforms/Utils/CodeExtractor.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -904,24 +903,18 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       // Those attributes cannot be propagated safely. Explicitly list them
       // here so we get a warning if new attributes are added.
       case Attribute::AllocSize:
-      case Attribute::ArgMemOnly:
       case Attribute::Builtin:
       case Attribute::Convergent:
-      case Attribute::InaccessibleMemOnly:
-      case Attribute::InaccessibleMemOrArgMemOnly:
       case Attribute::JumpTable:
       case Attribute::Naked:
       case Attribute::NoBuiltin:
       case Attribute::NoMerge:
       case Attribute::NoReturn:
       case Attribute::NoSync:
-      case Attribute::ReadNone:
-      case Attribute::ReadOnly:
       case Attribute::ReturnsTwice:
       case Attribute::Speculatable:
       case Attribute::StackAlignment:
       case Attribute::WillReturn:
-      case Attribute::WriteOnly:
       case Attribute::AllocKind:
       case Attribute::PresplitCoroutine:
       case Attribute::Memory:
@@ -984,6 +977,8 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::NoUndef:
       case Attribute::NonNull:
       case Attribute::Preallocated:
+      case Attribute::ReadNone:
+      case Attribute::ReadOnly:
       case Attribute::Returned:
       case Attribute::SExt:
       case Attribute::StructRet:
@@ -993,6 +988,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::ZExt:
       case Attribute::ImmArg:
       case Attribute::ByRef:
+      case Attribute::WriteOnly:
       //  These are not really attributes.
       case Attribute::None:
       case Attribute::EndAttrKinds:
@@ -1542,7 +1538,8 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
   assert(OldSP->getUnit() && "Missing compile unit for subprogram");
   DIBuilder DIB(*OldFunc.getParent(), /*AllowUnresolved=*/false,
                 OldSP->getUnit());
-  auto SPType = DIB.createSubroutineType(DIB.getOrCreateTypeArray(None));
+  auto SPType =
+      DIB.createSubroutineType(DIB.getOrCreateTypeArray(std::nullopt));
   DISubprogram::DISPFlags SPFlags = DISubprogram::SPFlagDefinition |
                                     DISubprogram::SPFlagOptimized |
                                     DISubprogram::SPFlagLocalToUnit;
@@ -1608,9 +1605,11 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
 
   // Fix up the scope information attached to the line locations in the new
   // function.
+  DenseMap<const MDNode *, MDNode *> Cache;
   for (Instruction &I : instructions(NewFunc)) {
     if (const DebugLoc &DL = I.getDebugLoc())
-      I.setDebugLoc(DILocation::get(Ctx, DL.getLine(), DL.getCol(), NewSP));
+      I.setDebugLoc(
+          DebugLoc::replaceInlinedAtSubprogram(DL, *NewSP, Ctx, Cache));
 
     // Loop info metadata may contain line locations. Fix them up.
     auto updateLoopInfoLoc = [&Ctx, NewSP](Metadata *MD) -> Metadata * {

@@ -162,7 +162,7 @@ func.func @cmpi_const_right(%arg0: i64)
 
 // -----
 
-// CHECK-LABEL: @cmpOfExtSI
+// CHECK-LABEL: @cmpOfExtSI(
 //  CHECK-NEXT:   return %arg0
 func.func @cmpOfExtSI(%arg0: i1) -> i1 {
   %ext = arith.extsi %arg0 : i1 to i64
@@ -171,13 +171,33 @@ func.func @cmpOfExtSI(%arg0: i1) -> i1 {
   return %res : i1
 }
 
-// CHECK-LABEL: @cmpOfExtUI
+// CHECK-LABEL: @cmpOfExtUI(
 //  CHECK-NEXT:   return %arg0
 func.func @cmpOfExtUI(%arg0: i1) -> i1 {
   %ext = arith.extui %arg0 : i1 to i64
   %c0 = arith.constant 0 : i64
   %res = arith.cmpi ne, %ext, %c0 : i64
   return %res : i1
+}
+
+// -----
+
+// CHECK-LABEL: @cmpOfExtSIVector(
+//  CHECK-NEXT:   return %arg0
+func.func @cmpOfExtSIVector(%arg0: vector<4xi1>) -> vector<4xi1> {
+  %ext = arith.extsi %arg0 : vector<4xi1> to vector<4xi64>
+  %c0 = arith.constant dense<0> : vector<4xi64>
+  %res = arith.cmpi ne, %ext, %c0 : vector<4xi64>
+  return %res : vector<4xi1>
+}
+
+// CHECK-LABEL: @cmpOfExtUIVector(
+//  CHECK-NEXT:   return %arg0
+func.func @cmpOfExtUIVector(%arg0: vector<4xi1>) -> vector<4xi1> {
+  %ext = arith.extui %arg0 : vector<4xi1> to vector<4xi64>
+  %c0 = arith.constant dense<0> : vector<4xi64>
+  %res = arith.cmpi ne, %ext, %c0 : vector<4xi64>
+  return %res : vector<4xi1>
 }
 
 // -----
@@ -398,6 +418,24 @@ func.func @truncConstant(%arg0: i8) -> i16 {
   %c-2 = arith.constant -2 : i32
   %tr = arith.trunci %c-2 : i32 to i16
   return %tr : i16
+}
+
+// CHECK-LABEL: @truncExtui
+//       CHECK-NOT:  trunci
+//       CHECK:   return  %arg0
+func.func @truncExtui(%arg0: i32) -> i32 {
+  %extui = arith.extui %arg0 : i32 to i64
+  %trunci = arith.trunci %extui : i64 to i32
+  return %trunci : i32
+}
+
+// CHECK-LABEL: @truncExtsi
+//       CHECK-NOT:  trunci
+//       CHECK:   return  %arg0
+func.func @truncExtsi(%arg0: i32) -> i32 {
+  %extsi = arith.extsi %arg0 : i32 to i64
+  %trunci = arith.trunci %extsi : i64 to i32
+  return %trunci : i32
 }
 
 // CHECK-LABEL: @truncConstantSplat
@@ -1658,5 +1696,49 @@ func.func @xorxor2(%a : i32, %b : i32) -> i32 {
 func.func @xorxor3(%a : i32, %b : i32) -> i32 {
   %c = arith.xori %b, %a : i32
   %res = arith.xori %b, %c : i32
+  return %res : i32
+}
+
+// -----
+
+/// and(a, and(a, b)) -> and(a, b)
+
+// CHECK-LABEL: @andand0
+//  CHECK-SAME:   (%[[A:.*]]: i32, %[[B:.*]]: i32)
+//       CHECK:   %[[RES:.*]] = arith.andi %[[A]], %[[B]] : i32
+//       CHECK:   return %[[RES]]
+func.func @andand0(%a : i32, %b : i32) -> i32 {
+  %c = arith.andi %a, %b : i32
+  %res = arith.andi %a, %c : i32
+  return %res : i32
+}
+
+// CHECK-LABEL: @andand1
+//  CHECK-SAME:   (%[[A:.*]]: i32, %[[B:.*]]: i32)
+//       CHECK:   %[[RES:.*]] = arith.andi %[[A]], %[[B]] : i32
+//       CHECK:   return %[[RES]]
+func.func @andand1(%a : i32, %b : i32) -> i32 {
+  %c = arith.andi %a, %b : i32
+  %res = arith.andi %c, %a : i32
+  return %res : i32
+}
+
+// CHECK-LABEL: @andand2
+//  CHECK-SAME:   (%[[A:.*]]: i32, %[[B:.*]]: i32)
+//       CHECK:   %[[RES:.*]] = arith.andi %[[A]], %[[B]] : i32
+//       CHECK:   return %[[RES]]
+func.func @andand2(%a : i32, %b : i32) -> i32 {
+  %c = arith.andi %a, %b : i32
+  %res = arith.andi %b, %c : i32
+  return %res : i32
+}
+
+// CHECK-LABEL: @andand3
+//  CHECK-SAME:   (%[[A:.*]]: i32, %[[B:.*]]: i32)
+//       CHECK:   %[[RES:.*]] = arith.andi %[[A]], %[[B]] : i32
+//       CHECK:   return %[[RES]]
+func.func @andand3(%a : i32, %b : i32) -> i32 {
+  %c = arith.andi %a, %b : i32
+  %res = arith.andi %c, %b : i32
   return %res : i32
 }
