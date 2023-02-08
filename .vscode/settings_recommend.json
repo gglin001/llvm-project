@@ -7,8 +7,8 @@
         // "-DLLVM_ENABLE_RUNTIMES=libcxx;libcxxabi"
     ],
     "cmake.configureSettings": {
-        "CMAKE_PREFIX_PATH": "/opt/conda/envs/py38/lib",
-        "CMAKE_SYSROOT": "/opt/conda/envs/py38/x86_64-conda-linux-gnu/sysroot",
+        // "CMAKE_PREFIX_PATH": "/opt/conda/envs/pyenv/lib",
+        // "CMAKE_SYSROOT": "/opt/conda/envs/pyenv/x86_64-conda-linux-gnu/sysroot",
         "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
         "CMAKE_INSTALL_PREFIX": "install",
         "LLVM_BUILD_EXAMPLES": "ON",
@@ -38,14 +38,14 @@
         "MLIR_INCLUDE_TESTS": "ON",
         // "CMAKE_VERBOSE_MAKEFILE": "OFF",
         "LLVM_ENABLE_ZSTD": "OFF",
-        // "Python3_EXECUTABLE": "/opt/conda/envs/py38/bin/python",
-        // "CMAKE_C_LINK_EXECUTABLE": "/opt/conda/envs/py38/x86_64-conda-linux-gnu/bin/ld",
-        // "CMAKE_CXX_LINK_EXECUTABLE": "/opt/conda/envs/py38/x86_64-conda-linux-gnu/bin/ld",
+        // "Python3_EXECUTABLE": "/opt/conda/envs/pyenv/bin/python",
+        // "CMAKE_C_LINK_EXECUTABLE": "/opt/conda/envs/pyenv/x86_64-conda-linux-gnu/bin/ld",
+        // "CMAKE_CXX_LINK_EXECUTABLE": "/opt/conda/envs/pyenv/x86_64-conda-linux-gnu/bin/ld",
     },
     "cmake.sourceDirectory": "${workspaceFolder}/llvm",
     // https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-mlir
-    // "mlir.server_path": "/opt/conda/envs/py38/bin/mlir-lsp-server",
-    "clangd.path": "/opt/conda/envs/py38/bin/clangd",
+    // "mlir.server_path": "/opt/conda/envs/pyenv/bin/mlir-lsp-server",
+    // "clangd.path": "/opt/conda/envs/pyenv/bin/clangd",
     "terminal.integrated.env.linux": {
         // "PATH": "${workspaceFolder}/build/bin:${env:PATH}",
         "PATH": "${workspaceFolder}/build/install/bin:${env:PATH}",
