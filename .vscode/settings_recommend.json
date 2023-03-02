@@ -16,7 +16,7 @@
         "LLVM_ENABLE_ASSERTIONS": "ON",
         "LLVM_ENABLE_LIBCXX": "OFF",
         "LLVM_ENABLE_LIBEDIT": "OFF",
-        "LLVM_ENABLE_LLD": "OFF",
+        "LLVM_ENABLE_LLD": "ON",
         "LLVM_ENABLE_OCAMLDOC": "OFF",
         "LLVM_ENABLE_RTTI": "ON",
         "LLVM_ENABLE_TERMINFO": "OFF",
