@@ -204,6 +204,14 @@ static Instruction *simplifyNvvmIntrinsic(IntrinsicInst *II, InstCombiner &IC) {
       return {Intrinsic::fma, FTZ_MustBeOff, true};
     case Intrinsic::nvvm_fma_rn_ftz_f16x2:
       return {Intrinsic::fma, FTZ_MustBeOn, true};
+    case Intrinsic::nvvm_fma_rn_bf16:
+      return {Intrinsic::fma, FTZ_MustBeOff, true};
+    case Intrinsic::nvvm_fma_rn_ftz_bf16:
+      return {Intrinsic::fma, FTZ_MustBeOn, true};
+    case Intrinsic::nvvm_fma_rn_bf16x2:
+      return {Intrinsic::fma, FTZ_MustBeOff, true};
+    case Intrinsic::nvvm_fma_rn_ftz_bf16x2:
+      return {Intrinsic::fma, FTZ_MustBeOn, true};
     case Intrinsic::nvvm_fmax_d:
       return {Intrinsic::maxnum, FTZ_Any};
     case Intrinsic::nvvm_fmax_f:
@@ -369,12 +377,10 @@ static Instruction *simplifyNvvmIntrinsic(IntrinsicInst *II, InstCombiner &IC) {
   // intrinsic, we don't have to look up any module metadata, as
   // FtzRequirementTy will be FTZ_Any.)
   if (Action.FtzRequirement != FTZ_Any) {
-    const char *AttrName =
-        Action.IsHalfTy ? "denormal-fp-math" : "denormal-fp-math-f32";
-    StringRef Attr =
-        II->getFunction()->getFnAttribute(AttrName).getValueAsString();
-    DenormalMode Mode = parseDenormalFPAttribute(Attr);
-    bool FtzEnabled = Mode.Output != DenormalMode::IEEE;
+    // FIXME: Broken for f64
+    DenormalMode Mode = II->getFunction()->getDenormalMode(
+        Action.IsHalfTy ? APFloat::IEEEhalf() : APFloat::IEEEsingle());
+    bool FtzEnabled = Mode.Output == DenormalMode::PreserveSign;
 
     if (FtzEnabled != (Action.FtzRequirement == FTZ_MustBeOn))
       return nullptr;

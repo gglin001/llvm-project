@@ -16,7 +16,6 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -71,12 +70,6 @@ INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
 INITIALIZE_PASS_END(MemorySSAWrapperPass, "memoryssa", "Memory SSA", false,
                     true)
-
-INITIALIZE_PASS_BEGIN(MemorySSAPrinterLegacyPass, "print-memoryssa",
-                      "Memory SSA Printer", false, false)
-INITIALIZE_PASS_DEPENDENCY(MemorySSAWrapperPass)
-INITIALIZE_PASS_END(MemorySSAPrinterLegacyPass, "print-memoryssa",
-                    "Memory SSA Printer", false, false)
 
 static cl::opt<unsigned> MaxCheckLimit(
     "memssa-check-limit", cl::Hidden, cl::init(100),
@@ -305,7 +298,6 @@ instructionClobbersQuery(const MemoryDef *MD, const MemoryLocation &UseLoc,
     case Intrinsic::experimental_noalias_scope_decl:
     case Intrinsic::pseudoprobe:
       return false;
-    case Intrinsic::dbg_addr:
     case Intrinsic::dbg_declare:
     case Intrinsic::dbg_label:
     case Intrinsic::dbg_value:
@@ -372,7 +364,8 @@ struct UpwardsMemoryQuery {
 
 } // end anonymous namespace
 
-static bool isUseTriviallyOptimizableToLiveOnEntry(BatchAAResults &AA,
+template <typename AliasAnalysisType>
+static bool isUseTriviallyOptimizableToLiveOnEntry(AliasAnalysisType &AA,
                                                    const Instruction *I) {
   // If the memory can't be changed, then loads of the memory can't be
   // clobbered.
@@ -503,14 +496,14 @@ class ClobberWalker {
     // First. Also note that First and Last are inclusive.
     MemoryAccess *First;
     MemoryAccess *Last;
-    Optional<ListIndex> Previous;
+    std::optional<ListIndex> Previous;
 
     DefPath(const MemoryLocation &Loc, MemoryAccess *First, MemoryAccess *Last,
-            Optional<ListIndex> Previous)
+            std::optional<ListIndex> Previous)
         : Loc(Loc), First(First), Last(Last), Previous(Previous) {}
 
     DefPath(const MemoryLocation &Loc, MemoryAccess *Init,
-            Optional<ListIndex> Previous)
+            std::optional<ListIndex> Previous)
         : DefPath(Loc, Init, Init, Previous) {}
   };
 
@@ -622,7 +615,7 @@ class ClobberWalker {
   /// If this returns std::nullopt, NewPaused is a vector of searches that
   /// terminated at StopWhere. Otherwise, NewPaused is left in an unspecified
   /// state.
-  Optional<TerminatedPath>
+  std::optional<TerminatedPath>
   getBlockingAccess(const MemoryAccess *StopWhere,
                     SmallVectorImpl<ListIndex> &PausedSearches,
                     SmallVectorImpl<ListIndex> &NewPaused,
@@ -720,7 +713,7 @@ class ClobberWalker {
     T &curNode() const { return W->Paths[*N]; }
 
     Walker *W = nullptr;
-    Optional<ListIndex> N = std::nullopt;
+    std::optional<ListIndex> N;
   };
 
   using def_path_iterator = generic_def_path_iterator<DefPath, ClobberWalker>;
@@ -809,7 +802,7 @@ class ClobberWalker {
       // FIXME: This is broken, because the Blocker may be reported to be
       // liveOnEntry, and we'll happily wait for that to disappear (read: never)
       // For the moment, this is fine, since we do nothing with blocker info.
-      if (Optional<TerminatedPath> Blocker = getBlockingAccess(
+      if (std::optional<TerminatedPath> Blocker = getBlockingAccess(
               Target, PausedSearches, NewPaused, TerminatedPaths)) {
 
         // Find the node we started at. We can't search based on N->Last, since
@@ -1369,11 +1362,6 @@ void MemorySSA::OptimizeUses::optimizeUsesInBlock(
     if (MU->isOptimized())
       continue;
 
-    if (isUseTriviallyOptimizableToLiveOnEntry(*AA, MU->getMemoryInst())) {
-      MU->setDefiningAccess(MSSA->getLiveOnEntryDef(), true);
-      continue;
-    }
-
     MemoryLocOrCall UseMLOC(MU);
     auto &LocInfo = LocStackInfo[UseMLOC];
     // If the pop epoch changed, it means we've removed stuff from top of
@@ -1759,10 +1747,10 @@ MemoryUseOrDef *MemorySSA::createNewAccess(Instruction *I,
     bool DefCheck, UseCheck;
     DefCheck = isModSet(ModRef) || isOrdered(I);
     UseCheck = isRefSet(ModRef);
-    // Use set is not checked since AA may return better results as a result of
-    // other transforms.
-    // FIXME: Would Def value always be consistent after transforms?
-    assert(Def == DefCheck && "Invalid template");
+    // Memory accesses should only be reduced and can not be increased since AA
+    // just might return better results as a result of some transformations.
+    assert((Def == DefCheck || !DefCheck) &&
+           "Memory accesses should only be reduced");
     if (!Def && Use != UseCheck) {
       // New Access should not have more power than template access
       assert(!UseCheck && "Invalid template");
@@ -1789,10 +1777,15 @@ MemoryUseOrDef *MemorySSA::createNewAccess(Instruction *I,
     return nullptr;
 
   MemoryUseOrDef *MUD;
-  if (Def)
+  if (Def) {
     MUD = new MemoryDef(I->getContext(), nullptr, I, I->getParent(), NextID++);
-  else
+  } else {
     MUD = new MemoryUse(I->getContext(), nullptr, I, I->getParent());
+    if (isUseTriviallyOptimizableToLiveOnEntry(*AAP, I)) {
+      MemoryAccess *LiveOnEntry = getLiveOnEntryDef();
+      MUD->setOptimized(LiveOnEntry);
+    }
+  }
   ValueToMemoryAccess[I] = MUD;
   return MUD;
 }
@@ -2221,17 +2214,6 @@ void MemoryAccess::dump() const {
 #endif
 }
 
-char MemorySSAPrinterLegacyPass::ID = 0;
-
-MemorySSAPrinterLegacyPass::MemorySSAPrinterLegacyPass() : FunctionPass(ID) {
-  initializeMemorySSAPrinterLegacyPassPass(*PassRegistry::getPassRegistry());
-}
-
-void MemorySSAPrinterLegacyPass::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.setPreservesAll();
-  AU.addRequired<MemorySSAWrapperPass>();
-}
-
 class DOTFuncMSSAInfo {
 private:
   const Function &F;
@@ -2316,20 +2298,6 @@ struct DOTGraphTraits<DOTFuncMSSAInfo *> : public DefaultDOTGraphTraits {
 
 } // namespace llvm
 
-bool MemorySSAPrinterLegacyPass::runOnFunction(Function &F) {
-  auto &MSSA = getAnalysis<MemorySSAWrapperPass>().getMSSA();
-  MSSA.ensureOptimizedUses();
-  if (DotCFGMSSA != "") {
-    DOTFuncMSSAInfo CFGInfo(F, MSSA);
-    WriteGraph(&CFGInfo, "", false, "MSSA", DotCFGMSSA);
-  } else
-    MSSA.print(dbgs());
-
-  if (VerifyMemorySSA)
-    MSSA.verifyMemorySSA();
-  return false;
-}
-
 AnalysisKey MemorySSAAnalysis::Key;
 
 MemorySSAAnalysis::Result MemorySSAAnalysis::run(Function &F,
@@ -2351,7 +2319,8 @@ bool MemorySSAAnalysis::Result::invalidate(
 PreservedAnalyses MemorySSAPrinterPass::run(Function &F,
                                             FunctionAnalysisManager &AM) {
   auto &MSSA = AM.getResult<MemorySSAAnalysis>(F).getMSSA();
-  MSSA.ensureOptimizedUses();
+  if (EnsureOptimizedUses)
+    MSSA.ensureOptimizedUses();
   if (DotCFGMSSA != "") {
     DOTFuncMSSAInfo CFGInfo(F, MSSA);
     WriteGraph(&CFGInfo, "", false, "MSSA", DotCFGMSSA);
@@ -2420,6 +2389,10 @@ MemoryAccess *MemorySSA::ClobberWalkerBase::getClobberingMemoryAccessBase(
     MemoryAccess *StartingAccess, const MemoryLocation &Loc,
     BatchAAResults &BAA, unsigned &UpwardWalkLimit) {
   assert(!isa<MemoryUse>(StartingAccess) && "Use cannot be defining access");
+
+  // If location is undefined, conservatively return starting access.
+  if (Loc.Ptr == nullptr)
+    return StartingAccess;
 
   Instruction *I = nullptr;
   if (auto *StartingUseOrDef = dyn_cast<MemoryUseOrDef>(StartingAccess)) {

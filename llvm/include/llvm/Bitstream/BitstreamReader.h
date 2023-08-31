@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -114,7 +115,7 @@ public:
 
   /// Return the bit # of the bit we are reading.
   uint64_t GetCurrentBitNo() const {
-    return NextChar*CHAR_BIT - BitsInCurWord;
+    return uint64_t(NextChar)*CHAR_BIT - BitsInCurWord;
   }
 
   // Return the byte # of the current bit.
@@ -564,7 +565,7 @@ public:
   ///
   /// \param ReadBlockInfoNames Whether to read block/record name information in
   /// the BlockInfo block. Only llvm-bcanalyzer uses this.
-  Expected<Optional<BitstreamBlockInfo>>
+  Expected<std::optional<BitstreamBlockInfo>>
   ReadBlockInfoBlock(bool ReadBlockInfoNames = false);
 
   /// Set the block info to be used by this BitstreamCursor to interpret

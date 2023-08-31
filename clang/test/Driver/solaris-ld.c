@@ -16,7 +16,7 @@
 // CHECK-LD-SPARC32-SAME: "-L[[SYSROOT]]/usr/gcc/4.8/lib/gcc/sparc-sun-solaris2.11/4.8.2"
 // CHECK-LD-SPARC32-SAME: "-L[[SYSROOT]]/usr/gcc/4.8/lib/gcc/sparc-sun-solaris2.11/4.8.2/../../.."
 // CHECK-LD-SPARC32-SAME: "-L[[SYSROOT]]/usr/lib"
-// CHECK-LD-SPARC32-SAME: "-zignore" "-latomic" "-zrecord"
+// CHECK-LD-SPARC32-SAME: "-z" "ignore" "-latomic" "-z" "record"
 // CHECK-LD-SPARC32-SAME: "-lgcc_s"
 // CHECK-LD-SPARC32-SAME: "-lc"
 // CHECK-LD-SPARC32-SAME: "-lgcc"
@@ -106,6 +106,33 @@
 // CHECK-SPARC32-SHARED-NOT: "-lgcc"
 // CHECK-SPARC32-SHARED-NOT: "-lm"
 
+// Check the right ld flags are present with -pie.
+// RUN: %clang --target=sparc-sun-solaris2.11 -### %s -pie \
+// RUN:     --gcc-toolchain="" \
+// RUN:     --sysroot=%S/Inputs/solaris_sparc_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-PIE %s
+// RUN: %clang --target=sparc-sun-solaris2.11 -### %s -nopie \
+// RUN:     --gcc-toolchain="" \
+// RUN:     --sysroot=%S/Inputs/solaris_sparc_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NOPIE %s
+
+// Check that -shared/-r/-static disable PIE.
+// RUN: %clang --target=sparc-sun-solaris2.11 -### %s -shared -pie \
+// RUN:     --gcc-toolchain="" \
+// RUN:     --sysroot=%S/Inputs/solaris_sparc_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NOPIE %s
+// RUN: %clang --target=sparc-sun-solaris2.11 -### %s -r -pie \
+// RUN:     --gcc-toolchain="" \
+// RUN:     --sysroot=%S/Inputs/solaris_sparc_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NOPIE %s
+// RUN: %clang --target=sparc-sun-solaris2.11 -### %s -static -pie \
+// RUN:     --gcc-toolchain="" \
+// RUN:     --sysroot=%S/Inputs/solaris_sparc_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NOPIE %s
+
+// CHECK-PIE: "-z" "type=pie"
+// CHECK-NOPIE-NOT: "-z" "type=pie"
+
 // -r suppresses default -l and crt*.o, values-*.o like -nostdlib.
 // RUN: %clang -### %s --target=sparc-sun-solaris2.11 -r 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-RELOCATABLE
@@ -114,3 +141,79 @@
 // CHECK-RELOCATABLE-NOT: "-l
 // CHECK-RELOCATABLE-NOT: /crt{{[^.]+}}.o
 // CHECK-RELOCATABLE-NOT: /values-{{[^.]+}}.o
+
+// Check that crt{begin,end}S.o is linked with -shared/-pie.
+// RUN: %clang --target=sparc-sun-solaris2.11 -### %s \
+// RUN:        --gcc-toolchain="" \
+// RUN:        --sysroot=%S/Inputs/solaris_sparc_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NOCRTS %s
+// RUN: %clang --target=sparc-sun-solaris2.11 -### %s -shared \
+// RUN:        --gcc-toolchain="" \
+// RUN:        --sysroot=%S/Inputs/solaris_sparc_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-CRTS %s
+// RUN: %clang --target=sparc-sun-solaris2.11 -### %s -nopie \
+// RUN:        --gcc-toolchain="" \
+// RUN:        --sysroot=%S/Inputs/solaris_sparc_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NOCRTS %s
+// RUN: %clang --target=sparc-sun-solaris2.11 -### %s -pie \
+// RUN:        --gcc-toolchain="" \
+// RUN:        --sysroot=%S/Inputs/solaris_sparc_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-CRTS %s
+// CHECK-CRTS: crtbeginS.o
+// CHECK-CRTS: crtendS.o
+// CHECK-NOCRTS-NOT: crtbeginS.o
+// CHECK-NOCRTS-NOT: crtendS.o
+
+// Check that crtfastmath.o is linked with -ffast-math.
+
+// Check sparc-sun-solaris2.11, 32bit
+// RUN: %clang --target=sparc-sun-solaris2.11 -### %s \
+// RUN:        --gcc-toolchain="" \
+// RUN:        --sysroot=%S/Inputs/solaris_sparc_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NOCRTFASTMATH-SPARC32 %s
+// RUN: %clang --target=sparc-sun-solaris2.11 -### %s -ffast-math \
+// RUN:        --gcc-toolchain="" \
+// RUN:        --sysroot=%S/Inputs/solaris_sparc_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-CRTFASTMATH-SPARC32 %s
+// CHECK-CRTFASTMATH-SPARC32: "-isysroot" "[[SYSROOT:[^"]+]]"
+// CHECK-CRTFASTMATH-SPARC32: "[[SYSROOT]]/usr/gcc/4.8/lib/gcc/sparc-sun-solaris2.11/4.8.2{{/|\\\\}}crtfastmath.o"
+// CHECK-NOCRTFASTMATH-SPARC32-NOT: crtfastmath.o
+
+// Check sparc-pc-solaris2.11, 64bit
+// RUN: %clang -m64 --target=sparc-sun-solaris2.11 -### %s \
+// RUN:        --gcc-toolchain="" \
+// RUN:        --sysroot=%S/Inputs/solaris_sparc_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NOCRTFASTMATH-SPARC64 %s
+// RUN: %clang -m64 --target=sparc-sun-solaris2.11 -### %s -ffast-math \
+// RUN:        --gcc-toolchain="" \
+// RUN:        --sysroot=%S/Inputs/solaris_sparc_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-CRTFASTMATH-SPARC64 %s
+// CHECK-CRTFASTMATH-SPARC64: "-isysroot" "[[SYSROOT:[^"]+]]"
+// CHECK-CRTFASTMATH-SPARC64: "[[SYSROOT]]/usr/gcc/4.8/lib/gcc/sparc-sun-solaris2.11/4.8.2/sparcv9{{/|\\\\}}crtfastmath.o"
+// CHECK-NOCRTFASTMATH-SPARC64-NOT: crtfastmath.o
+
+// Check i386-pc-solaris2.11, 32bit
+// RUN: %clang --target=i386-pc-solaris2.11 -### %s \
+// RUN:        --gcc-toolchain="" \
+// RUN:        --sysroot=%S/Inputs/solaris_x86_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NOCRTFASTMATH-X32 %s
+// RUN: %clang --target=i386-pc-solaris2.11 -### %s -ffast-math \
+// RUN:        --gcc-toolchain="" \
+// RUN:        --sysroot=%S/Inputs/solaris_x86_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-CRTFASTMATH-X32 %s
+// CHECK-CRTFASTMATH-X32: "-isysroot" "[[SYSROOT:[^"]+]]"
+// CHECK-CRTFASTMATH-X32: "[[SYSROOT]]/usr/gcc/4.9/lib/gcc/i386-pc-solaris2.11/4.9.4{{/|\\\\}}crtfastmath.o"
+// CHECK-NOCRTFASTMATH-X32-NOT: crtfastmath.o
+
+// Check i386-pc-solaris2.11, 64bit
+// RUN: %clang -m64 --target=i386-pc-solaris2.11 -### %s \
+// RUN:        --gcc-toolchain="" \
+// RUN:        --sysroot=%S/Inputs/solaris_x86_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NOCRTFASTMATH-X64 %s
+// RUN: %clang -m64 --target=i386-pc-solaris2.11 -### %s -ffast-math \
+// RUN:        --gcc-toolchain="" \
+// RUN:        --sysroot=%S/Inputs/solaris_x86_tree 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-CRTFASTMATH-X64 %s
+// CHECK-CRTFASTMATH-X64: "-isysroot" "[[SYSROOT:[^"]+]]"
+// CHECK-CRTFASTMATH-X64: "[[SYSROOT]]/usr/gcc/4.9/lib/gcc/i386-pc-solaris2.11/4.9.4/amd64{{/|\\\\}}crtfastmath.o"
+// CHECK-NOCRTFASTMATH-X64-NOT: crtfastmath.o

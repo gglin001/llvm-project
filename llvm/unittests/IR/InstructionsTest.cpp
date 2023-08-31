@@ -102,6 +102,11 @@ TEST_F(ModuleWithFunctionTest, CallInst) {
   Call->addRetAttr(Attribute::get(Call->getContext(), "test-str-attr"));
   EXPECT_TRUE(Call->hasRetAttr("test-str-attr"));
   EXPECT_FALSE(Call->hasRetAttr("not-on-call"));
+
+  Call->addFnAttr(Attribute::get(Call->getContext(), "test-str-fn-attr"));
+  ASSERT_TRUE(Call->hasFnAttr("test-str-fn-attr"));
+  Call->removeFnAttr("test-str-fn-attr");
+  EXPECT_FALSE(Call->hasFnAttr("test-str-fn-attr"));
 }
 
 TEST_F(ModuleWithFunctionTest, InvokeInst) {
@@ -630,7 +635,7 @@ TEST(InstructionsTest, isEliminableCastPair) {
   Type* Int16Ty = Type::getInt16Ty(C);
   Type* Int32Ty = Type::getInt32Ty(C);
   Type* Int64Ty = Type::getInt64Ty(C);
-  Type* Int64PtrTy = Type::getInt64PtrTy(C);
+  Type *Int64PtrTy = PointerType::get(C, 0);
 
   // Source and destination pointers have same size -> bitcast.
   EXPECT_EQ(CastInst::isEliminableCastPair(CastInst::PtrToInt,
@@ -675,8 +680,8 @@ TEST(InstructionsTest, isEliminableCastPair) {
                 "-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64"
                 "-v128:128:128-a:0:64-s:64:64-f80:128:128-n8:16:32:64-S128");
 
-  Type* Int64PtrTyAS1 = Type::getInt64PtrTy(C, 1);
-  Type* Int64PtrTyAS2 = Type::getInt64PtrTy(C, 2);
+  Type *Int64PtrTyAS1 = PointerType::get(C, 1);
+  Type *Int64PtrTyAS2 = PointerType::get(C, 2);
 
   IntegerType *Int16SizePtr = DL.getIntPtrType(C, 1);
   IntegerType *Int64SizePtr = DL.getIntPtrType(C, 2);
@@ -1516,7 +1521,7 @@ if.end:
 }
 )");
   Function *Foo = M->getFunction("foo");
-  auto BBs = Foo->getBasicBlockList().begin();
+  auto BBs = Foo->begin();
   CallBrInst &CBI = cast<CallBrInst>(BBs->front());
   ++BBs;
   ++BBs;
@@ -1695,7 +1700,7 @@ TEST(InstructionsTest, InsertAtBegin) {
   BasicBlock *BB = &*F->begin();
   Instruction *Ret = &*BB->begin();
   Instruction *I = BinaryOperator::CreateAdd(ArgA, ArgB);
-  auto It = I->insertAt(BB, BB->begin());
+  auto It = I->insertInto(BB, BB->begin());
   EXPECT_EQ(&*It, I);
   EXPECT_EQ(I->getNextNode(), Ret);
 }
@@ -1714,7 +1719,7 @@ TEST(InstructionsTest, InsertAtEnd) {
   BasicBlock *BB = &*F->begin();
   Instruction *Ret = &*BB->begin();
   Instruction *I = BinaryOperator::CreateAdd(ArgA, ArgB);
-  auto It = I->insertAt(BB, BB->end());
+  auto It = I->insertInto(BB, BB->end());
   EXPECT_EQ(&*It, I);
   EXPECT_EQ(Ret->getNextNode(), I);
 }

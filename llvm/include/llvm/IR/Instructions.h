@@ -18,7 +18,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Bitfields.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
@@ -106,6 +105,10 @@ public:
   unsigned getAddressSpace() const {
     return getType()->getAddressSpace();
   }
+
+  /// Get allocation size in bytes. Returns std::nullopt if size can't be
+  /// determined, e.g. in case of a VLA.
+  std::optional<TypeSize> getAllocationSize(const DataLayout &DL) const;
 
   /// Get allocation size in bits. Returns std::nullopt if size can't be
   /// determined, e.g. in case of a VLA.
@@ -762,8 +765,16 @@ public:
     /// \p minnum matches the behavior of \p llvm.minnum.*.
     FMin,
 
+    /// Increment one up to a maximum value.
+    /// *p = (old u>= v) ? 0 : (old + 1)
+    UIncWrap,
+
+    /// Decrement one until a minimum value or zero.
+    /// *p = ((old == 0) || (old u> v)) ? v : (old - 1)
+    UDecWrap,
+
     FIRST_BINOP = Xchg,
-    LAST_BINOP = FMin,
+    LAST_BINOP = UDecWrap,
     BAD_BINOP
   };
 
@@ -775,7 +786,7 @@ private:
 
   template <unsigned Offset>
   using BinOpBitfieldElement =
-      typename Bitfield::Element<BinOp, Offset, 4, BinOp::LAST_BINOP>;
+      typename Bitfield::Element<BinOp, Offset, 5, BinOp::LAST_BINOP>;
 
 public:
   AtomicRMWInst(BinOp Operation, Value *Ptr, Value *Val, Align Alignment,
@@ -958,8 +969,6 @@ public:
                                    Instruction *InsertBefore = nullptr) {
     unsigned Values = 1 + unsigned(IdxList.size());
     assert(PointeeType && "Must specify element type");
-    assert(cast<PointerType>(Ptr->getType()->getScalarType())
-               ->isOpaqueOrPointeeTypeMatches(PointeeType));
     return new (Values) GetElementPtrInst(PointeeType, Ptr, IdxList, Values,
                                           NameStr, InsertBefore);
   }
@@ -970,8 +979,6 @@ public:
                                    BasicBlock *InsertAtEnd) {
     unsigned Values = 1 + unsigned(IdxList.size());
     assert(PointeeType && "Must specify element type");
-    assert(cast<PointerType>(Ptr->getType()->getScalarType())
-               ->isOpaqueOrPointeeTypeMatches(PointeeType));
     return new (Values) GetElementPtrInst(PointeeType, Ptr, IdxList, Values,
                                           NameStr, InsertAtEnd);
   }
@@ -1007,8 +1014,6 @@ public:
   void setResultElementType(Type *Ty) { ResultElementType = Ty; }
 
   Type *getResultElementType() const {
-    assert(cast<PointerType>(getType()->getScalarType())
-               ->isOpaqueOrPointeeTypeMatches(ResultElementType));
     return ResultElementType;
   }
 
@@ -1072,26 +1077,19 @@ public:
 
   /// Returns the pointer type returned by the GEP
   /// instruction, which may be a vector of pointers.
-  static Type *getGEPReturnType(Type *ElTy, Value *Ptr,
-                                ArrayRef<Value *> IdxList) {
-    PointerType *OrigPtrTy = cast<PointerType>(Ptr->getType()->getScalarType());
-    unsigned AddrSpace = OrigPtrTy->getAddressSpace();
-    Type *ResultElemTy = checkGEPType(getIndexedType(ElTy, IdxList));
-    Type *PtrTy = OrigPtrTy->isOpaque()
-      ? PointerType::get(OrigPtrTy->getContext(), AddrSpace)
-      : PointerType::get(ResultElemTy, AddrSpace);
+  static Type *getGEPReturnType(Value *Ptr, ArrayRef<Value *> IdxList) {
     // Vector GEP
-    if (auto *PtrVTy = dyn_cast<VectorType>(Ptr->getType())) {
-      ElementCount EltCount = PtrVTy->getElementCount();
-      return VectorType::get(PtrTy, EltCount);
-    }
+    Type *Ty = Ptr->getType();
+    if (Ty->isVectorTy())
+      return Ty;
+
     for (Value *Index : IdxList)
       if (auto *IndexVTy = dyn_cast<VectorType>(Index->getType())) {
         ElementCount EltCount = IndexVTy->getElementCount();
-        return VectorType::get(PtrTy, EltCount);
+        return VectorType::get(Ty, EltCount);
       }
     // Scalar GEP
-    return PtrTy;
+    return Ty;
   }
 
   unsigned getNumIndices() const {  // Note: always non-negative
@@ -1149,13 +1147,11 @@ GetElementPtrInst::GetElementPtrInst(Type *PointeeType, Value *Ptr,
                                      ArrayRef<Value *> IdxList, unsigned Values,
                                      const Twine &NameStr,
                                      Instruction *InsertBefore)
-    : Instruction(getGEPReturnType(PointeeType, Ptr, IdxList), GetElementPtr,
+    : Instruction(getGEPReturnType(Ptr, IdxList), GetElementPtr,
                   OperandTraits<GetElementPtrInst>::op_end(this) - Values,
                   Values, InsertBefore),
       SourceElementType(PointeeType),
       ResultElementType(getIndexedType(PointeeType, IdxList)) {
-  assert(cast<PointerType>(getType()->getScalarType())
-             ->isOpaqueOrPointeeTypeMatches(ResultElementType));
   init(Ptr, IdxList, NameStr);
 }
 
@@ -1163,13 +1159,11 @@ GetElementPtrInst::GetElementPtrInst(Type *PointeeType, Value *Ptr,
                                      ArrayRef<Value *> IdxList, unsigned Values,
                                      const Twine &NameStr,
                                      BasicBlock *InsertAtEnd)
-    : Instruction(getGEPReturnType(PointeeType, Ptr, IdxList), GetElementPtr,
+    : Instruction(getGEPReturnType(Ptr, IdxList), GetElementPtr,
                   OperandTraits<GetElementPtrInst>::op_end(this) - Values,
                   Values, InsertAtEnd),
       SourceElementType(PointeeType),
       ResultElementType(getIndexedType(PointeeType, IdxList)) {
-  assert(cast<PointerType>(getType()->getScalarType())
-             ->isOpaqueOrPointeeTypeMatches(ResultElementType));
   init(Ptr, IdxList, NameStr);
 }
 
@@ -1991,7 +1985,7 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(InsertElementInst, Value)
 //                           ShuffleVectorInst Class
 //===----------------------------------------------------------------------===//
 
-constexpr int UndefMaskElem = -1;
+constexpr int PoisonMaskElem = -1;
 
 /// This instruction constructs a fixed permutation of two
 /// input vectors.
@@ -1999,7 +1993,7 @@ constexpr int UndefMaskElem = -1;
 /// For each element of the result vector, the shuffle mask selects an element
 /// from one of the input vectors to copy to the result. Non-negative elements
 /// in the mask represent an index into the concatenated pair of input vectors.
-/// UndefMaskElem (-1) specifies that the result element is undefined.
+/// PoisonMaskElem (-1) specifies that the result element is poison.
 ///
 /// For scalable vectors, all the elements of the mask must be 0 or -1. This
 /// requirement may be relaxed in the future.
@@ -2057,16 +2051,16 @@ public:
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
 
   /// Return the shuffle mask value of this instruction for the given element
-  /// index. Return UndefMaskElem if the element is undef.
+  /// index. Return PoisonMaskElem if the element is undef.
   int getMaskValue(unsigned Elt) const { return ShuffleMask[Elt]; }
 
   /// Convert the input shuffle mask operand to a vector of integers. Undefined
-  /// elements of the mask are returned as UndefMaskElem.
+  /// elements of the mask are returned as PoisonMaskElem.
   static void getShuffleMask(const Constant *Mask,
                              SmallVectorImpl<int> &Result);
 
   /// Return the mask for this instruction as a vector of integers. Undefined
-  /// elements of the mask are returned as UndefMaskElem.
+  /// elements of the mask are returned as PoisonMaskElem.
   void getShuffleMask(SmallVectorImpl<int> &Result) const {
     Result.assign(ShuffleMask.begin(), ShuffleMask.end());
   }
@@ -2419,6 +2413,52 @@ public:
     }
   }
 
+  /// Return if this shuffle interleaves its two input vectors together.
+  bool isInterleave(unsigned Factor);
+
+  /// Return true if the mask interleaves one or more input vectors together.
+  ///
+  /// I.e. <0, LaneLen, ... , LaneLen*(Factor - 1), 1, LaneLen + 1, ...>
+  /// E.g. For a Factor of 2 (LaneLen=4):
+  ///   <0, 4, 1, 5, 2, 6, 3, 7>
+  /// E.g. For a Factor of 3 (LaneLen=4):
+  ///   <4, 0, 9, 5, 1, 10, 6, 2, 11, 7, 3, 12>
+  /// E.g. For a Factor of 4 (LaneLen=2):
+  ///   <0, 2, 6, 4, 1, 3, 7, 5>
+  ///
+  /// NumInputElts is the total number of elements in the input vectors.
+  ///
+  /// StartIndexes are the first indexes of each vector being interleaved,
+  /// substituting any indexes that were undef
+  /// E.g. <4, -1, 2, 5, 1, 3> (Factor=3): StartIndexes=<4, 0, 2>
+  ///
+  /// Note that this does not check if the input vectors are consecutive:
+  /// It will return true for masks such as
+  /// <0, 4, 6, 1, 5, 7> (Factor=3, LaneLen=2)
+  static bool isInterleaveMask(ArrayRef<int> Mask, unsigned Factor,
+                               unsigned NumInputElts,
+                               SmallVectorImpl<unsigned> &StartIndexes);
+  static bool isInterleaveMask(ArrayRef<int> Mask, unsigned Factor,
+                               unsigned NumInputElts) {
+    SmallVector<unsigned, 8> StartIndexes;
+    return isInterleaveMask(Mask, Factor, NumInputElts, StartIndexes);
+  }
+
+  /// Checks if the shuffle is a bit rotation of the first operand across
+  /// multiple subelements, e.g:
+  ///
+  /// shuffle <8 x i8> %a, <8 x i8> poison, <8 x i32> <1, 0, 3, 2, 5, 4, 7, 6>
+  ///
+  /// could be expressed as
+  ///
+  /// rotl <4 x i16> %a, 8
+  ///
+  /// If it can be expressed as a rotation, returns the number of subelements to
+  /// group by in NumSubElts and the number of bits to rotate left in RotateAmt.
+  static bool isBitRotateMask(ArrayRef<int> Mask, unsigned EltSizeInBits,
+                              unsigned MinSubElts, unsigned MaxSubElts,
+                              unsigned &NumSubElts, unsigned &RotateAmt);
+
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::ShuffleVector;
@@ -2752,28 +2792,18 @@ public:
 
   // Block iterator interface. This provides access to the list of incoming
   // basic blocks, which parallels the list of incoming values.
+  // Please note that we are not providing non-const iterators for blocks to
+  // force all updates go through an interface function.
 
   using block_iterator = BasicBlock **;
   using const_block_iterator = BasicBlock * const *;
-
-  block_iterator block_begin() {
-    return reinterpret_cast<block_iterator>(op_begin() + ReservedSpace);
-  }
 
   const_block_iterator block_begin() const {
     return reinterpret_cast<const_block_iterator>(op_begin() + ReservedSpace);
   }
 
-  block_iterator block_end() {
-    return block_begin() + getNumOperands();
-  }
-
   const_block_iterator block_end() const {
     return block_begin() + getNumOperands();
-  }
-
-  iterator_range<block_iterator> blocks() {
-    return make_range(block_begin(), block_end());
   }
 
   iterator_range<const_block_iterator> blocks() const {
@@ -2830,8 +2860,14 @@ public:
   }
 
   void setIncomingBlock(unsigned i, BasicBlock *BB) {
-    assert(BB && "PHI node got a null basic block!");
-    block_begin()[i] = BB;
+    const_cast<block_iterator>(block_begin())[i] = BB;
+  }
+
+  /// Copies the basic blocks from \p BBRange to the incoming basic block list
+  /// of this PHINode, starting at \p ToIdx.
+  void copyIncomingBlocks(iterator_range<const_block_iterator> BBRange,
+                          uint32_t ToIdx = 0) {
+    copy(BBRange, const_cast<block_iterator>(block_begin()) + ToIdx);
   }
 
   /// Replace every incoming basic block \p Old to basic block \p New.
@@ -2868,6 +2904,11 @@ public:
     assert(Idx >= 0 && "Invalid basic block argument to remove!");
     return removeIncomingValue(Idx, DeletePHIIfEmpty);
   }
+
+  /// Remove all incoming values for which the predicate returns true.
+  /// The predicate accepts the incoming value index.
+  void removeIncomingValueIf(function_ref<bool(unsigned)> Predicate,
+                             bool DeletePHIIfEmpty = true);
 
   /// Return the first index of the specified basic
   /// block in the value list for this PHI.  Returns -1 if no instance.
@@ -3617,12 +3658,10 @@ public:
 /// their prof branch_weights metadata.
 class SwitchInstProfUpdateWrapper {
   SwitchInst &SI;
-  std::optional<SmallVector<uint32_t, 8>> Weights = std::nullopt;
+  std::optional<SmallVector<uint32_t, 8>> Weights;
   bool Changed = false;
 
 protected:
-  static MDNode *getProfBranchWeightsMD(const SwitchInst &SI);
-
   MDNode *buildProfBranchWeightsMD();
 
   void init();
@@ -5409,7 +5448,7 @@ inline Type *getLoadStoreType(Value *I) {
 }
 
 /// A helper function that returns an atomic operation's sync scope; returns
-/// None if it is not an atomic operation.
+/// std::nullopt if it is not an atomic operation.
 inline std::optional<SyncScope::ID> getAtomicSyncScopeID(const Instruction *I) {
   if (!I->isAtomic())
     return std::nullopt;

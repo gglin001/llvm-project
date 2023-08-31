@@ -30,6 +30,7 @@ const MCSchedModel MCSchedModel::Default = {DefaultIssueWidth,
                                             DefaultMispredictPenalty,
                                             false,
                                             true,
+                                            false /*EnableIntervals*/,
                                             0,
                                             nullptr,
                                             nullptr,
@@ -93,14 +94,14 @@ MCSchedModel::getReciprocalThroughput(const MCSubtargetInfo &STI,
   const MCWriteProcResEntry *I = STI.getWriteProcResBegin(&SCDesc);
   const MCWriteProcResEntry *E = STI.getWriteProcResEnd(&SCDesc);
   for (; I != E; ++I) {
-    if (!I->Cycles)
+    if (!I->ReleaseAtCycle)
       continue;
     unsigned NumUnits = SM.getProcResource(I->ProcResourceIdx)->NumUnits;
-    double Temp = NumUnits * 1.0 / I->Cycles;
-    Throughput = Throughput ? std::min(Throughput.value(), Temp) : Temp;
+    double Temp = NumUnits * 1.0 / I->ReleaseAtCycle;
+    Throughput = Throughput ? std::min(*Throughput, Temp) : Temp;
   }
   if (Throughput)
-    return 1.0 / Throughput.value();
+    return 1.0 / *Throughput;
 
   // If no throughput value was calculated, assume that we can execute at the
   // maximum issue width scaled by number of micro-ops for the schedule class.
@@ -140,11 +141,11 @@ MCSchedModel::getReciprocalThroughput(unsigned SchedClass,
   for (; I != E; ++I) {
     if (!I->getCycles())
       continue;
-    double Temp = countPopulation(I->getUnits()) * 1.0 / I->getCycles();
-    Throughput = Throughput ? std::min(Throughput.value(), Temp) : Temp;
+    double Temp = llvm::popcount(I->getUnits()) * 1.0 / I->getCycles();
+    Throughput = Throughput ? std::min(*Throughput, Temp) : Temp;
   }
   if (Throughput)
-    return 1.0 / Throughput.value();
+    return 1.0 / *Throughput;
 
   // If there are no execution resources specified for this class, then assume
   // that it can execute at the maximum default issue width.

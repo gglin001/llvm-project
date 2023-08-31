@@ -10,11 +10,11 @@ add_mlir_library(MLIRLLVMTestPasses
   MLIRFuncToLLVM
   MLIRIndexToLLVM
   MLIRIR
-  MLIRLinalgToLLVM
   MLIRLLVMDialect
   MLIRLinalgTransforms
   MLIRMathToLLVM
   MLIRMemRefToLLVM
+  MLIRMemRefTransforms
   MLIRPass
   MLIRReconcileUnrealizedCasts
   MLIRSCFToControlFlow

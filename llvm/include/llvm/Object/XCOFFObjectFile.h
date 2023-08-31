@@ -195,36 +195,8 @@ struct XCOFFSectionHeader64 : XCOFFSectionHeader<XCOFFSectionHeader64> {
   char Padding[4];
 };
 
-struct LoaderSectionHeader32 {
-  support::ubig32_t Version;
-  support::ubig32_t NumberOfSymTabEnt;
-  support::ubig32_t NumberOfRelTabEnt;
-  support::ubig32_t LengthOfImpidStrTbl;
-  support::ubig32_t NumberOfImpid;
-  support::big32_t OffsetToImpid;
-  support::ubig32_t LengthOfStrTbl;
-  support::big32_t OffsetToStrTbl;
-
-  uint64_t getOffsetToSymTbl() const {
-    return NumberOfSymTabEnt == 0 ? 0 : sizeof(LoaderSectionHeader32);
-  }
-};
-
-struct LoaderSectionHeader64 {
-  support::ubig32_t Version;
-  support::ubig32_t NumberOfSymTabEnt;
-  support::ubig32_t NumberOfRelTabEnt;
-  support::ubig32_t LengthOfImpidStrTbl;
-  support::ubig32_t NumberOfImpid;
-  support::ubig32_t LengthOfStrTbl;
-  support::big64_t OffsetToImpid;
-  support::big64_t OffsetToStrTbl;
-  support::big64_t OffsetToSymTbl;
-  support::big64_t OffsetToRelEnt;
-
-  uint64_t getOffsetToSymTbl() const { return OffsetToSymTbl; }
-};
-
+struct LoaderSectionHeader32;
+struct LoaderSectionHeader64;
 struct LoaderSectionSymbolEntry32 {
   struct NameOffsetInStrTbl {
     support::big32_t IsNameInStrTbl; // Zero indicates name in string table.
@@ -254,6 +226,59 @@ struct LoaderSectionSymbolEntry64 {
 
   Expected<StringRef>
   getSymbolName(const LoaderSectionHeader64 *LoaderSecHeader) const;
+};
+
+struct LoaderSectionRelocationEntry32 {
+  support::ubig32_t VirtualAddr;
+  support::big32_t SymbolIndex;
+  support::ubig16_t Type;
+  support::big16_t SectionNum;
+};
+
+struct LoaderSectionRelocationEntry64 {
+  support::ubig64_t VirtualAddr;
+  support::ubig16_t Type;
+  support::big16_t SectionNum;
+  support::big32_t SymbolIndex;
+};
+
+struct LoaderSectionHeader32 {
+  support::ubig32_t Version;
+  support::ubig32_t NumberOfSymTabEnt;
+  support::ubig32_t NumberOfRelTabEnt;
+  support::ubig32_t LengthOfImpidStrTbl;
+  support::ubig32_t NumberOfImpid;
+  support::big32_t OffsetToImpid;
+  support::ubig32_t LengthOfStrTbl;
+  support::big32_t OffsetToStrTbl;
+
+  uint64_t getOffsetToSymTbl() const {
+    return NumberOfSymTabEnt == 0 ? 0 : sizeof(LoaderSectionHeader32);
+  }
+
+  uint64_t getOffsetToRelEnt() const {
+    // Relocation table is after Symbol table.
+    return NumberOfRelTabEnt == 0
+               ? 0
+               : sizeof(LoaderSectionHeader32) +
+                     sizeof(LoaderSectionSymbolEntry32) * NumberOfSymTabEnt;
+  }
+};
+
+struct LoaderSectionHeader64 {
+  support::ubig32_t Version;
+  support::ubig32_t NumberOfSymTabEnt;
+  support::ubig32_t NumberOfRelTabEnt;
+  support::ubig32_t LengthOfImpidStrTbl;
+  support::ubig32_t NumberOfImpid;
+  support::ubig32_t LengthOfStrTbl;
+  support::big64_t OffsetToImpid;
+  support::big64_t OffsetToStrTbl;
+  support::big64_t OffsetToSymTbl;
+  support::big64_t OffsetToRelEnt;
+
+  uint64_t getOffsetToSymTbl() const { return OffsetToSymTbl; }
+  uint64_t getOffsetToRelEnt() const { return OffsetToRelEnt; }
 };
 
 template <typename AddressType> struct ExceptionSectionEntry {
@@ -468,20 +493,6 @@ struct XCOFFSectAuxEntForDWARF64 {
 };
 
 template <typename AddressType> struct XCOFFRelocation {
-  // Masks for packing/unpacking the r_rsize field of relocations.
-
-  // The msb is used to indicate if the bits being relocated are signed or
-  // unsigned.
-  static constexpr uint8_t XR_SIGN_INDICATOR_MASK = 0x80;
-
-  // The 2nd msb is used to indicate that the binder has replaced/modified the
-  // original instruction.
-  static constexpr uint8_t XR_FIXUP_INDICATOR_MASK = 0x40;
-
-  // The remaining bits specify the bit length of the relocatable reference
-  // minus one.
-  static constexpr uint8_t XR_BIASED_LENGTH_MASK = 0x3f;
-
 public:
   AddressType VirtualAddress;
   support::ubig32_t SymbolIndex;
@@ -565,7 +576,7 @@ public:
   Expected<uint32_t> getSymbolFlags(DataRefImpl Symb) const override;
   basic_symbol_iterator symbol_begin() const override;
   basic_symbol_iterator symbol_end() const override;
-
+  bool is64Bit() const override;
   Expected<StringRef> getSymbolName(DataRefImpl Symb) const override;
   Expected<uint64_t> getSymbolAddress(DataRefImpl Symb) const override;
   uint64_t getSymbolValueImpl(DataRefImpl Symb) const override;
@@ -608,13 +619,13 @@ public:
   uint8_t getBytesInAddress() const override;
   StringRef getFileFormatName() const override;
   Triple::ArchType getArch() const override;
-  SubtargetFeatures getFeatures() const override;
+  Expected<SubtargetFeatures> getFeatures() const override;
   Expected<uint64_t> getStartAddress() const override;
   StringRef mapDebugSectionName(StringRef Name) const override;
   bool isRelocatableObject() const override;
 
   // Below here is the non-inherited interface.
-  bool is64Bit() const;
+
   Expected<StringRef> getRawData(const char *Start, uint64_t Size,
                                  StringRef Name) const;
 
@@ -704,6 +715,8 @@ public:
                                                  uint32_t Distance);
 
   static bool classof(const Binary *B) { return B->isXCOFF(); }
+
+  std::optional<StringRef> tryGetCPUName() const override;
 }; // XCOFFObjectFile
 
 typedef struct {
@@ -835,6 +848,7 @@ public:
 
 class XCOFFTracebackTable {
   const uint8_t *const TBPtr;
+  bool Is64BitObj;
   std::optional<SmallString<32>> ParmsType;
   std::optional<uint32_t> TraceBackTableOffset;
   std::optional<uint32_t> HandlerMask;
@@ -844,8 +858,10 @@ class XCOFFTracebackTable {
   std::optional<uint8_t> AllocaRegister;
   std::optional<TBVectorExt> VecExt;
   std::optional<uint8_t> ExtensionTable;
+  std::optional<uint64_t> EhInfoDisp;
 
-  XCOFFTracebackTable(const uint8_t *Ptr, uint64_t &Size, Error &Err);
+  XCOFFTracebackTable(const uint8_t *Ptr, uint64_t &Size, Error &Err,
+                      bool Is64Bit = false);
 
 public:
   /// Parse an XCOFF Traceback Table from \a Ptr with \a Size bytes.
@@ -861,8 +877,8 @@ public:
   ///    If the XCOFF Traceback Table is not parsed successfully or there are
   ///    extra bytes that are not recognized, \a Size will be updated to be the
   ///    size up to the end of the last successfully parsed field of the table.
-  static Expected<XCOFFTracebackTable> create(const uint8_t *Ptr,
-                                              uint64_t &Size);
+  static Expected<XCOFFTracebackTable>
+  create(const uint8_t *Ptr, uint64_t &Size, bool Is64Bits = false);
   uint8_t getVersion() const;
   uint8_t getLanguageID() const;
 
@@ -919,6 +935,7 @@ public:
   const std::optional<uint8_t> &getExtensionTable() const {
     return ExtensionTable;
   }
+  const std::optional<uint64_t> &getEhInfoDisp() const { return EhInfoDisp; }
 };
 
 bool doesXCOFFTracebackTableBegin(ArrayRef<uint8_t> Bytes);

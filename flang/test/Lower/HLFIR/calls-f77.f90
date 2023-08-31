@@ -1,5 +1,5 @@
 ! Test lowering of F77 calls to HLFIR
-! RUN: bbc -emit-fir -hlfir -o - %s 2>&1 | FileCheck %s
+! RUN: bbc -emit-hlfir -o - %s 2>&1 | FileCheck %s
 
 ! -----------------------------------------------------------------------------
 !     Test lowering of F77 procedure reference arguments
@@ -157,14 +157,14 @@ end subroutine
 ! CHECK-LABEL: func.func @_QPreturn_char(
 ! CHECK:  %[[VAL_1:.*]]:2 = hlfir.declare {{.*}}n
 ! CHECK:  %[[VAL_2:.*]] = arith.constant -1 : i32
-! CHECK:  %[[VAL_7:.*]] = fir.load %[[VAL_1]]#1 : !fir.ref<i64>
+! CHECK:  %[[VAL_7:.*]] = fir.load %[[VAL_1]]#0 : !fir.ref<i64>
 ! CHECK:  %[[VAL_8:.*]] = fir.convert %[[VAL_7]] : (i64) -> index
 ! CHECK:  %[[VAL_9:.*]] = arith.constant 0 : index
 ! CHECK:  %[[VAL_10:.*]] = arith.cmpi sgt, %[[VAL_8]], %[[VAL_9]] : index
 ! CHECK:  %[[VAL_11:.*]] = arith.select %[[VAL_10]], %[[VAL_8]], %[[VAL_9]] : index
 ! CHECK:  %[[VAL_13:.*]] = fir.alloca !fir.char<1,?>(%[[VAL_11]] : index) {bindc_name = ".result"}
 ! CHECK:  %[[VAL_14:.*]] = fir.call @_QPc2foo(%[[VAL_13]], %[[VAL_11]]) fastmath<contract> : (!fir.ref<!fir.char<1,?>>, index) -> !fir.boxchar<1>
-! CHECK:  %[[VAL_15:.*]]:2 = hlfir.declare %[[VAL_13]] typeparams %[[VAL_11]] {uniq_name = "tmp.funcresult"} : (!fir.ref<!fir.char<1,?>>, index) -> (!fir.boxchar<1>, !fir.ref<!fir.char<1,?>>)
+! CHECK:  %[[VAL_15:.*]]:2 = hlfir.declare %[[VAL_13]] typeparams %[[VAL_11]] {uniq_name = ".tmp.func_result"} : (!fir.ref<!fir.char<1,?>>, index) -> (!fir.boxchar<1>, !fir.ref<!fir.char<1,?>>)
 
 ! -----------------------------------------------------------------------------
 !     Test calls with alternate returns

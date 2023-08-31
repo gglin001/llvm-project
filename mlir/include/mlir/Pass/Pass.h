@@ -14,6 +14,7 @@
 #include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/Statistic.h"
+#include <optional>
 
 namespace mlir {
 namespace detail {
@@ -82,7 +83,7 @@ public:
 
   /// Returns the name of the operation that this pass operates on, or
   /// std::nullopt if this is a generic OperationPass.
-  Optional<StringRef> getOpName() const { return opName; }
+  std::optional<StringRef> getOpName() const { return opName; }
 
   //===--------------------------------------------------------------------===//
   // Options
@@ -159,7 +160,7 @@ public:
   }
 
 protected:
-  explicit Pass(TypeID passID, Optional<StringRef> opName = std::nullopt)
+  explicit Pass(TypeID passID, std::optional<StringRef> opName = std::nullopt)
       : passID(passID), opName(opName) {}
   Pass(const Pass &other) : Pass(other.passID, other.opName) {}
 
@@ -179,8 +180,10 @@ protected:
   /// should not rely on any state accessible during the execution of a pass.
   /// For example, `getContext`/`getOperation`/`getAnalysis`/etc. should not be
   /// invoked within this hook.
-  /// Returns a LogicalResult to indicate failure, in which case the pass
-  /// pipeline won't execute.
+  /// This method is invoked after all dependent dialects for the pipeline are
+  /// loaded, and is not allowed to load any further dialects (override the
+  /// `getDependentDialects()` for this purpose instead). Returns a LogicalResult
+  /// to indicate failure, in which case the pass pipeline won't execute.
   virtual LogicalResult initialize(MLIRContext *context) { return success(); }
 
   /// Indicate if the current pass can be scheduled on the given operation type.
@@ -227,7 +230,7 @@ protected:
   /// Query a cached instance of an analysis for the current ir unit if one
   /// exists.
   template <typename AnalysisT>
-  Optional<std::reference_wrapper<AnalysisT>> getCachedAnalysis() {
+  std::optional<std::reference_wrapper<AnalysisT>> getCachedAnalysis() {
     return getAnalysisManager().getCachedAnalysis<AnalysisT>();
   }
 
@@ -247,21 +250,21 @@ protected:
 
   /// Returns the analysis for the given parent operation if it exists.
   template <typename AnalysisT>
-  Optional<std::reference_wrapper<AnalysisT>>
+  std::optional<std::reference_wrapper<AnalysisT>>
   getCachedParentAnalysis(Operation *parent) {
     return getAnalysisManager().getCachedParentAnalysis<AnalysisT>(parent);
   }
 
   /// Returns the analysis for the parent operation if it exists.
   template <typename AnalysisT>
-  Optional<std::reference_wrapper<AnalysisT>> getCachedParentAnalysis() {
+  std::optional<std::reference_wrapper<AnalysisT>> getCachedParentAnalysis() {
     return getAnalysisManager().getCachedParentAnalysis<AnalysisT>(
         getOperation()->getParentOp());
   }
 
   /// Returns the analysis for the given child operation if it exists.
   template <typename AnalysisT>
-  Optional<std::reference_wrapper<AnalysisT>>
+  std::optional<std::reference_wrapper<AnalysisT>>
   getCachedChildAnalysis(Operation *child) {
     return getAnalysisManager().getCachedChildAnalysis<AnalysisT>(child);
   }
@@ -302,10 +305,10 @@ private:
 
   /// The name of the operation that this pass operates on, or std::nullopt if
   /// this is a generic OperationPass.
-  Optional<StringRef> opName;
+  std::optional<StringRef> opName;
 
   /// The current execution state for the pass.
-  Optional<detail::PassExecutionState> passState;
+  std::optional<detail::PassExecutionState> passState;
 
   /// The set of statistics held by this pass.
   std::vector<Statistic *> statistics;

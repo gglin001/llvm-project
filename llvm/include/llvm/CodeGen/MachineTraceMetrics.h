@@ -49,7 +49,6 @@
 #include "llvm/ADT/SparseSet.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -83,6 +82,16 @@ struct LiveRegUnit {
   LiveRegUnit(unsigned RU) : RegUnit(RU) {}
 };
 
+/// Strategies for selecting traces.
+enum class MachineTraceStrategy {
+  /// Select the trace through a block that has the fewest instructions.
+  TS_MinInstrCount,
+  /// Select the trace that contains only the current basic block. For instance,
+  /// this strategy can be used by MachineCombiner to make better decisions when
+  /// we estimate critical path for in-order cores.
+  TS_Local,
+  TS_NumStrategies
+};
 
 class MachineTraceMetrics : public MachineFunctionPass {
   const MachineFunction *MF = nullptr;
@@ -134,7 +143,7 @@ public:
   /// The getResources() function above must have been called first.
   ///
   /// These numbers have already been scaled by SchedModel.getResourceFactor().
-  ArrayRef<unsigned> getProcResourceCycles(unsigned MBBNum) const;
+  ArrayRef<unsigned> getProcReleaseAtCycles(unsigned MBBNum) const;
 
   /// A virtual register or regunit required by a basic block or its trace
   /// successors.
@@ -373,18 +382,10 @@ public:
 
   };
 
-  /// Strategies for selecting traces.
-  enum Strategy {
-    /// Select the trace through a block that has the fewest instructions.
-    TS_MinInstrCount,
-
-    TS_NumStrategies
-  };
-
   /// Get the trace ensemble representing the given trace selection strategy.
   /// The returned Ensemble object is owned by the MachineTraceMetrics analysis,
   /// and valid for the lifetime of the analysis pass.
-  Ensemble *getEnsemble(Strategy);
+  Ensemble *getEnsemble(MachineTraceStrategy);
 
   /// Invalidate cached information about MBB. This must be called *before* MBB
   /// is erased, or the CFG is otherwise changed.
@@ -403,12 +404,13 @@ private:
   // Cycles consumed on each processor resource per block.
   // The number of processor resource kinds is constant for a given subtarget,
   // but it is not known at compile time. The number of cycles consumed by
-  // block B on processor resource R is at ProcResourceCycles[B*Kinds + R]
+  // block B on processor resource R is at ProcReleaseAtCycles[B*Kinds + R]
   // where Kinds = SchedModel.getNumProcResourceKinds().
-  SmallVector<unsigned, 0> ProcResourceCycles;
+  SmallVector<unsigned, 0> ProcReleaseAtCycles;
 
   // One ensemble per strategy.
-  Ensemble* Ensembles[TS_NumStrategies];
+  Ensemble
+      *Ensembles[static_cast<size_t>(MachineTraceStrategy::TS_NumStrategies)];
 
   // Convert scaled resource usage to a cycle count that can be compared with
   // latencies.

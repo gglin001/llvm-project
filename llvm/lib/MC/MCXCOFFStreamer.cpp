@@ -81,6 +81,21 @@ void MCXCOFFStreamer::emitXCOFFSymbolLinkageWithVisibility(
   emitSymbolAttribute(Symbol, Visibility);
 }
 
+void MCXCOFFStreamer::emitXCOFFRefDirective(const MCSymbol *Symbol) {
+  // Add a Fixup here to later record a relocation of type R_REF to prevent the
+  // ref symbol from being garbage collected (by the binder).
+  MCDataFragment *DF = getOrCreateDataFragment();
+  const MCSymbolRefExpr *SRE = MCSymbolRefExpr::create(Symbol, getContext());
+  std::optional<MCFixupKind> MaybeKind =
+      getAssembler().getBackend().getFixupKind("R_REF");
+  if (!MaybeKind)
+    report_fatal_error("failed to get fixup kind for R_REF relocation");
+
+  MCFixupKind Kind = *MaybeKind;
+  MCFixup Fixup = MCFixup::create(DF->getContents().size(), SRE, Kind);
+  DF->getFixups().push_back(Fixup);
+}
+
 void MCXCOFFStreamer::emitXCOFFExceptDirective(const MCSymbol *Symbol,
                                                const MCSymbol *Trap,
                                                unsigned Lang, unsigned Reason,
@@ -90,8 +105,12 @@ void MCXCOFFStreamer::emitXCOFFExceptDirective(const MCSymbol *Symbol,
                                                FunctionSize, hasDebug);
 }
 
+void MCXCOFFStreamer::emitXCOFFCInfoSym(StringRef Name, StringRef Metadata) {
+  getAssembler().getWriter().addCInfoSymEntry(Name, Metadata);
+}
+
 void MCXCOFFStreamer::emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                                       unsigned ByteAlignment) {
+                                       Align ByteAlignment) {
   getAssembler().registerSymbol(*Symbol);
   Symbol->setExternal(cast<MCSymbolXCOFF>(Symbol)->getStorageClass() !=
                       XCOFF::C_HIDEXT);
@@ -100,10 +119,10 @@ void MCXCOFFStreamer::emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
   // Default csect align is 4, but common symbols have explicit alignment values
   // and we should honor it.
   cast<MCSymbolXCOFF>(Symbol)->getRepresentedCsect()->setAlignment(
-      Align(ByteAlignment));
+      ByteAlignment);
 
   // Emit the alignment and storage for the variable to the section.
-  emitValueToAlignment(Align(ByteAlignment));
+  emitValueToAlignment(ByteAlignment);
   emitZeros(Size);
 }
 
@@ -118,8 +137,7 @@ void MCXCOFFStreamer::emitInstToData(const MCInst &Inst,
   MCAssembler &Assembler = getAssembler();
   SmallVector<MCFixup, 4> Fixups;
   SmallString<256> Code;
-  raw_svector_ostream VecOS(Code);
-  Assembler.getEmitter().encodeInstruction(Inst, VecOS, Fixups, STI);
+  Assembler.getEmitter().encodeInstruction(Inst, Code, Fixups, STI);
 
   // Add the fixups and data.
   MCDataFragment *DF = getOrCreateDataFragment(&STI);
@@ -150,5 +168,5 @@ void MCXCOFFStreamer::emitXCOFFLocalCommonSymbol(MCSymbol *LabelSym,
                                                  uint64_t Size,
                                                  MCSymbol *CsectSym,
                                                  Align Alignment) {
-  emitCommonSymbol(CsectSym, Size, Alignment.value());
+  emitCommonSymbol(CsectSym, Size, Alignment);
 }

@@ -42,6 +42,16 @@ void MCSectionXCOFF::printSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
     return;
   }
 
+  if (getKind().isReadOnlyWithRel()) {
+    if (getMappingClass() != XCOFF::XMC_RW &&
+        getMappingClass() != XCOFF::XMC_RO &&
+        getMappingClass() != XCOFF::XMC_TD)
+      report_fatal_error(
+          "Unexepected storage-mapping class for ReadOnlyWithRel kind");
+    printCsectDirective(OS);
+    return;
+  }
+
   // Initialized TLS data.
   if (getKind().isThreadData()) {
     // We only expect XMC_TL here for initialized TLS data.
@@ -72,8 +82,7 @@ void MCSectionXCOFF::printSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
   }
 
   if (isCsect() && getMappingClass() == XCOFF::XMC_TD) {
-    assert((getKind().isBSSExtern() || getKind().isBSSLocal() ||
-            getKind().isReadOnlyWithRel()) &&
+    assert((getKind().isBSSExtern() || getKind().isBSSLocal()) &&
            "Unexepected section kind for toc-data");
     printCsectDirective(OS);
     return;
@@ -109,7 +118,7 @@ void MCSectionXCOFF::printSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
 
   // XCOFF debug sections.
   if (getKind().isMetadata() && isDwarfSect()) {
-    OS << "\n\t.dwsect " << format("0x%" PRIx32, getDwarfSubtypeFlags().value())
+    OS << "\n\t.dwsect " << format("0x%" PRIx32, *getDwarfSubtypeFlags())
        << '\n';
     OS << MAI.getPrivateLabelPrefix() << getName() << ':' << '\n';
     return;

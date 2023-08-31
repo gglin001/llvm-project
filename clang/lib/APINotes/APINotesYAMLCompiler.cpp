@@ -17,7 +17,6 @@
 #include "clang/APINotes/Types.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/Specifiers.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/Support/YAMLTraits.h"
@@ -496,6 +495,9 @@ template <> struct MappingTraits<Typedef> {
 } // namespace llvm
 
 namespace {
+struct Namespace;
+typedef std::vector<Namespace> NamespacesSeq;
+
 struct TopLevelItems {
   ClassesSeq Classes;
   ClassesSeq Protocols;
@@ -504,6 +506,7 @@ struct TopLevelItems {
   EnumConstantsSeq EnumConstants;
   TagsSeq Tags;
   TypedefsSeq Typedefs;
+  NamespacesSeq Namespaces;
 };
 } // namespace
 
@@ -517,7 +520,36 @@ static void mapTopLevelItems(IO &IO, TopLevelItems &TLI) {
   IO.mapOptional("Enumerators", TLI.EnumConstants);
   IO.mapOptional("Tags", TLI.Tags);
   IO.mapOptional("Typedefs", TLI.Typedefs);
+  IO.mapOptional("Namespaces", TLI.Namespaces);
 }
+} // namespace yaml
+} // namespace llvm
+
+namespace {
+struct Namespace {
+  StringRef Name;
+  AvailabilityItem Availability;
+  StringRef SwiftName;
+  std::optional<bool> SwiftPrivate;
+  TopLevelItems Items;
+};
+} // namespace
+
+LLVM_YAML_IS_SEQUENCE_VECTOR(Namespace)
+
+namespace llvm {
+namespace yaml {
+template <> struct MappingTraits<Namespace> {
+  static void mapping(IO &IO, Namespace &T) {
+    IO.mapRequired("Name", T.Name);
+    IO.mapOptional("Availability", T.Availability.Mode,
+                   APIAvailability::Available);
+    IO.mapOptional("AvailabilityMsg", T.Availability.Msg, StringRef(""));
+    IO.mapOptional("SwiftPrivate", T.SwiftPrivate);
+    IO.mapOptional("SwiftName", T.SwiftName, StringRef(""));
+    mapTopLevelItems(IO, T.Items);
+  }
+};
 } // namespace yaml
 } // namespace llvm
 
@@ -550,7 +582,7 @@ struct Module {
   TopLevelItems TopLevel;
   VersionedSeq SwiftVersions;
 
-  std::optional<bool> SwiftInferImportAsMember = std::nullopt;
+  std::optional<bool> SwiftInferImportAsMember;
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   LLVM_DUMP_METHOD void dump() /*const*/;

@@ -15,7 +15,6 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/MC/MCDirectives.h"
@@ -23,11 +22,11 @@
 #include "llvm/MC/MCLinkerOptimizationHint.h"
 #include "llvm/MC/MCPseudoProbe.h"
 #include "llvm/MC/MCWinEH.h"
-#include "llvm/Support/ARMTargetParser.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MD5.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/VersionTuple.h"
+#include "llvm/TargetParser/ARMTargetParser.h"
 #include <cassert>
 #include <cstdint>
 #include <memory>
@@ -158,7 +157,7 @@ public:
   virtual void emitTextAttribute(unsigned Attribute, StringRef String);
   virtual void emitIntTextAttribute(unsigned Attribute, unsigned IntValue,
                                     StringRef StringValue = "");
-  virtual void emitFPU(unsigned FPU);
+  virtual void emitFPU(ARM::FPUKind FPU);
   virtual void emitArch(ARM::ArchKind Arch);
   virtual void emitArchExtension(uint64_t ArchExt);
   virtual void emitObjectArch(ARM::ArchKind Arch);
@@ -215,6 +214,10 @@ class MCStreamer {
   std::unique_ptr<MCTargetStreamer> TargetStreamer;
 
   std::vector<MCDwarfFrameInfo> DwarfFrameInfos;
+  // This is a pair of index into DwarfFrameInfos and the MCSection associated
+  // with the frame. Note, we use an index instead of an iterator because they
+  // can be invalidated in std::vector.
+  SmallVector<std::pair<size_t, MCSection *>, 1> FrameInfoStack;
   MCDwarfFrameInfo *getCurrentDwarfFrameInfo();
 
   /// Similar to DwarfFrameInfos, but for SEH unwind info. Chained frames may
@@ -633,7 +636,7 @@ public:
   /// \param Symbol - The function containing the trap.
   /// \param Lang - The language code for the exception entry.
   /// \param Reason - The reason code for the exception entry.
-  virtual void emitXCOFFExceptDirective(const MCSymbol *Symbol, 
+  virtual void emitXCOFFExceptDirective(const MCSymbol *Symbol,
                                         const MCSymbol *Trap,
                                         unsigned Lang, unsigned Reason,
                                         unsigned FunctionSize, bool hasDebug);
@@ -642,7 +645,13 @@ public:
   /// relocation table for one or more symbols.
   ///
   /// \param Sym - The symbol on the .ref directive.
-  virtual void emitXCOFFRefDirective(StringRef Sym);
+  virtual void emitXCOFFRefDirective(const MCSymbol *Symbol);
+
+  /// Emit a C_INFO symbol with XCOFF embedded metadata to the .info section.
+  ///
+  /// \param Name - The embedded metadata name
+  /// \param Metadata - The embedded metadata
+  virtual void emitXCOFFCInfoSym(StringRef Name, StringRef Metadata);
 
   /// Emit an ELF .size directive.
   ///
@@ -668,10 +677,9 @@ public:
   ///
   /// \param Symbol - The common symbol to emit.
   /// \param Size - The size of the common symbol.
-  /// \param ByteAlignment - The alignment of the symbol if
-  /// non-zero. This must be a power of 2.
+  /// \param ByteAlignment - The alignment of the symbol.
   virtual void emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                                unsigned ByteAlignment) = 0;
+                                Align ByteAlignment) = 0;
 
   /// Emit a local common (.lcomm) symbol.
   ///
@@ -686,8 +694,7 @@ public:
   /// \param Section - The zerofill section to create and or to put the symbol
   /// \param Symbol - The zerofill symbol to emit, if non-NULL.
   /// \param Size - The size of the zerofill symbol.
-  /// \param ByteAlignment - The alignment of the zerofill symbol if
-  /// non-zero. This must be a power of 2 on some targets.
+  /// \param ByteAlignment - The alignment of the zerofill symbol.
   virtual void emitZerofill(MCSection *Section, MCSymbol *Symbol = nullptr,
                             uint64_t Size = 0, Align ByteAlignment = Align(1),
                             SMLoc Loc = SMLoc()) = 0;
@@ -697,10 +704,9 @@ public:
   /// \param Section - The thread local common section.
   /// \param Symbol - The thread local common symbol to emit.
   /// \param Size - The size of the symbol.
-  /// \param ByteAlignment - The alignment of the thread local common symbol
-  /// if non-zero.  This must be a power of 2 on some targets.
+  /// \param ByteAlignment - The alignment of the thread local common symbol.
   virtual void emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
-                              uint64_t Size, unsigned ByteAlignment = 0);
+                              uint64_t Size, Align ByteAlignment = Align(1));
 
   /// @}
   /// \name Generating Data
@@ -761,11 +767,11 @@ public:
 
   /// Special case of EmitULEB128Value that avoids the client having to
   /// pass in a MCExpr for constant integers.
-  void emitULEB128IntValue(uint64_t Value, unsigned PadTo = 0);
+  unsigned emitULEB128IntValue(uint64_t Value, unsigned PadTo = 0);
 
   /// Special case of EmitSLEB128Value that avoids the client having to
   /// pass in a MCExpr for constant integers.
-  void emitSLEB128IntValue(int64_t Value);
+  unsigned emitSLEB128IntValue(int64_t Value);
 
   /// Special case of EmitValue that avoids the client having to pass in
   /// a MCExpr for MCSymbols.
@@ -1025,28 +1031,29 @@ public:
   virtual void emitCFISections(bool EH, bool Debug);
   void emitCFIStartProc(bool IsSimple, SMLoc Loc = SMLoc());
   void emitCFIEndProc();
-  virtual void emitCFIDefCfa(int64_t Register, int64_t Offset);
-  virtual void emitCFIDefCfaOffset(int64_t Offset);
-  virtual void emitCFIDefCfaRegister(int64_t Register);
+  virtual void emitCFIDefCfa(int64_t Register, int64_t Offset, SMLoc Loc = {});
+  virtual void emitCFIDefCfaOffset(int64_t Offset, SMLoc Loc = {});
+  virtual void emitCFIDefCfaRegister(int64_t Register, SMLoc Loc = {});
   virtual void emitCFILLVMDefAspaceCfa(int64_t Register, int64_t Offset,
-                                       int64_t AddressSpace);
-  virtual void emitCFIOffset(int64_t Register, int64_t Offset);
+                                       int64_t AddressSpace, SMLoc Loc = {});
+  virtual void emitCFIOffset(int64_t Register, int64_t Offset, SMLoc Loc = {});
   virtual void emitCFIPersonality(const MCSymbol *Sym, unsigned Encoding);
   virtual void emitCFILsda(const MCSymbol *Sym, unsigned Encoding);
-  virtual void emitCFIRememberState();
-  virtual void emitCFIRestoreState();
-  virtual void emitCFISameValue(int64_t Register);
-  virtual void emitCFIRestore(int64_t Register);
-  virtual void emitCFIRelOffset(int64_t Register, int64_t Offset);
-  virtual void emitCFIAdjustCfaOffset(int64_t Adjustment);
-  virtual void emitCFIEscape(StringRef Values);
+  virtual void emitCFIRememberState(SMLoc Loc);
+  virtual void emitCFIRestoreState(SMLoc Loc);
+  virtual void emitCFISameValue(int64_t Register, SMLoc Loc = {});
+  virtual void emitCFIRestore(int64_t Register, SMLoc Loc = {});
+  virtual void emitCFIRelOffset(int64_t Register, int64_t Offset, SMLoc Loc);
+  virtual void emitCFIAdjustCfaOffset(int64_t Adjustment, SMLoc Loc = {});
+  virtual void emitCFIEscape(StringRef Values, SMLoc Loc = {});
   virtual void emitCFIReturnColumn(int64_t Register);
-  virtual void emitCFIGnuArgsSize(int64_t Size);
+  virtual void emitCFIGnuArgsSize(int64_t Size, SMLoc Loc = {});
   virtual void emitCFISignalFrame();
-  virtual void emitCFIUndefined(int64_t Register);
-  virtual void emitCFIRegister(int64_t Register1, int64_t Register2);
-  virtual void emitCFIWindowSave();
-  virtual void emitCFINegateRAState();
+  virtual void emitCFIUndefined(int64_t Register, SMLoc Loc = {});
+  virtual void emitCFIRegister(int64_t Register1, int64_t Register2,
+                               SMLoc Loc = {});
+  virtual void emitCFIWindowSave(SMLoc Loc = {});
+  virtual void emitCFINegateRAState(SMLoc Loc = {});
 
   virtual void emitWinCFIStartProc(const MCSymbol *Symbol, SMLoc Loc = SMLoc());
   virtual void emitWinCFIEndProc(SMLoc Loc = SMLoc());
@@ -1100,7 +1107,7 @@ public:
 
   /// Emit the a pseudo probe into the current section.
   virtual void emitPseudoProbe(uint64_t Guid, uint64_t Index, uint64_t Type,
-                               uint64_t Attr,
+                               uint64_t Attr, uint64_t Discriminator,
                                const MCPseudoProbeInlineStack &InlineStack,
                                MCSymbol *FnSym);
 

@@ -124,7 +124,7 @@ static void handleHVXTargetFeatures(const Driver &D, const ArgList &Args,
       [&](auto FlagOn, auto FlagOff,
           unsigned MinVerNum) -> std::optional<StringRef> {
     // Return an std::optional<StringRef>:
-    // - None indicates a verification failure, or that the flag was not
+    // - std::nullopt indicates a verification failure, or that the flag was not
     //   present in Args.
     // - Otherwise the returned value is that name of the feature to add
     //   to Features.
@@ -159,9 +159,11 @@ static void handleHVXTargetFeatures(const Driver &D, const ArgList &Args,
 }
 
 // Hexagon target features.
-void hexagon::getHexagonTargetFeatures(const Driver &D, const ArgList &Args,
+void hexagon::getHexagonTargetFeatures(const Driver &D,
+                                       const llvm::Triple &Triple,
+                                       const ArgList &Args,
                                        std::vector<StringRef> &Features) {
-  handleTargetFeaturesGroup(Args, Features,
+  handleTargetFeaturesGroup(D, Triple, Args, Features,
                             options::OPT_m_hexagon_Features_Group);
 
   bool UseLongCalls = false;
@@ -341,8 +343,8 @@ constructHexagonLinkArgs(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-pie");
 
   if (auto G = toolchains::HexagonToolChain::getSmallDataThreshold(Args)) {
-    CmdArgs.push_back(Args.MakeArgString("-G" + Twine(G.value())));
-    UseG0 = G.value() == 0;
+    CmdArgs.push_back(Args.MakeArgString("-G" + Twine(*G)));
+    UseG0 = *G == 0;
   }
 
   CmdArgs.push_back("-o");
@@ -361,19 +363,18 @@ constructHexagonLinkArgs(Compilation &C, const JobAction &JA,
 
     CmdArgs.push_back(
         Args.MakeArgString(StringRef("-L") + D.SysRoot + "/usr/lib"));
-    Args.AddAllArgs(CmdArgs,
-                    {options::OPT_T_Group, options::OPT_e, options::OPT_s,
-                     options::OPT_t, options::OPT_u_Group});
+    Args.AddAllArgs(CmdArgs, {options::OPT_T_Group, options::OPT_s,
+                              options::OPT_t, options::OPT_u_Group});
     AddLinkerInputs(HTC, Inputs, Args, CmdArgs, JA);
 
     if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
       if (NeedsSanitizerDeps) {
-        linkSanitizerRuntimeDeps(HTC, CmdArgs);
+        linkSanitizerRuntimeDeps(HTC, Args, CmdArgs);
 
         CmdArgs.push_back("-lunwind");
       }
       if (NeedsXRayDeps)
-        linkXRayRuntimeDeps(HTC, CmdArgs);
+        linkXRayRuntimeDeps(HTC, Args, CmdArgs);
 
       CmdArgs.push_back("-lclang_rt.builtins-hexagon");
       CmdArgs.push_back("-lc");
@@ -382,6 +383,10 @@ constructHexagonLinkArgs(Compilation &C, const JobAction &JA,
       if (HTC.ShouldLinkCXXStdlib(Args))
         HTC.AddCXXStdlibLibArgs(Args, CmdArgs);
     }
+    const ToolChain::path_list &LibPaths = HTC.getFilePaths();
+    for (const auto &LibPath : LibPaths)
+      CmdArgs.push_back(Args.MakeArgString(StringRef("-L") + LibPath));
+    Args.ClaimAllArgs(options::OPT_L);
     return;
   }
 
@@ -440,13 +445,13 @@ constructHexagonLinkArgs(Compilation &C, const JobAction &JA,
   const ToolChain::path_list &LibPaths = HTC.getFilePaths();
   for (const auto &LibPath : LibPaths)
     CmdArgs.push_back(Args.MakeArgString(StringRef("-L") + LibPath));
+  Args.ClaimAllArgs(options::OPT_L);
 
   //----------------------------------------------------------------------------
   //
   //----------------------------------------------------------------------------
-  Args.AddAllArgs(CmdArgs,
-                  {options::OPT_T_Group, options::OPT_e, options::OPT_s,
-                   options::OPT_t, options::OPT_u_Group});
+  Args.AddAllArgs(CmdArgs, {options::OPT_T_Group, options::OPT_s,
+                            options::OPT_t, options::OPT_u_Group});
 
   AddLinkerInputs(HTC, Inputs, Args, CmdArgs, JA);
 
@@ -540,7 +545,9 @@ HexagonToolChain::getSmallDataThreshold(const ArgList &Args) {
 std::string HexagonToolChain::getCompilerRTPath() const {
   SmallString<128> Dir(getDriver().SysRoot);
   llvm::sys::path::append(Dir, "usr", "lib");
-  Dir += SelectedMultilib.gccSuffix();
+  if (!SelectedMultilibs.empty()) {
+    Dir += SelectedMultilibs.back().gccSuffix();
+  }
   return std::string(Dir.str());
 }
 

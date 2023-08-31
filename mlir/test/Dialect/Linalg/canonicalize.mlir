@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -canonicalize -split-input-file | FileCheck %s
+// RUN: mlir-opt %s -canonicalize="test-convergence" -split-input-file | FileCheck %s
 
 // CHECK-LABEL: func @memref_cast(
 func.func @memref_cast(%a: index, %b: index) -> memref<?x?xf32> {
@@ -44,6 +44,16 @@ func.func @dce_zero_memref(%arg0 : memref<0xf32>, %arg1: tensor<0xf32>) -> tenso
 //  CHECK-SAME:   %[[ARG1:[a-zA-Z0-9_]+]]: tensor<0xf32>
 //   CHECK-NOT:   memref.copy
 //  CHECK-NEXT:   return %[[ARG1]]
+
+// -----
+
+func.func @dce_self_linalg_copy(%arg0 : memref<?xf32>) {
+  linalg.copy ins(%arg0: memref<?xf32>) outs(%arg0: memref<?xf32>)
+  return
+}
+
+// CHECK-LABEL: @dce_self_linalg_copy
+//   CHECK-NOT:   copy
 
 // -----
 
@@ -299,9 +309,10 @@ func.func @self_copy(%arg0 : memref<2x3x?x4xf32>) {
 // CHECK-LABEL: func @fold_fill_reshape()
 func.func @fold_fill_reshape() -> tensor<6x4xf32> {
   %zero = arith.constant 0.0 : f32
-  // CHECK: %[[INIT:.+]] = tensor.empty() : tensor<6x4xf32>
   %empty = tensor.empty() : tensor<1x2x3x4xf32>
-  // CHECK: %[[FILL:.+]] = linalg.fill ins(%cst : f32) outs(%[[INIT]] : tensor<6x4xf32>) -> tensor<6x4xf32>
+  // CHECK:      %[[COLLAPSE:.+]] = tensor.collapse_shape
+  // CHECK-NEXT: %[[FILL:.+]] = linalg.fill ins(%cst : f32)
+  // CHECK-SAME:   outs(%[[COLLAPSE]] : tensor<6x4xf32>)
   %fill = linalg.fill ins(%zero : f32) outs(%empty : tensor<1x2x3x4xf32>) -> tensor<1x2x3x4xf32>
   %reshape = tensor.collapse_shape %fill [[0, 1, 2], [3]]
       : tensor<1x2x3x4xf32> into tensor<6x4xf32>
@@ -322,6 +333,22 @@ func.func @fold_fill_reshape_dynamic(%arg0 : tensor<?x?x?x?x?xf32>) -> tensor<?x
       : tensor<?x?x?x?x?xf32> into tensor<?x?xf32>
   // CHECK: return %[[RESULT]]
   return %1 : tensor<?x?xf32>
+}
+
+// -----
+//       CHECK: func @fold_fill_extract
+//  CHECK-SAME:   %[[ARG0:.+]]: i1
+func.func @fold_fill_extract(%arg0 : i1) -> i1 {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+
+  %empty_dynamic = tensor.empty(%c1) : tensor<1x2x3x?xi1>
+  %filled = linalg.fill ins(%arg0 : i1) outs(%empty_dynamic : tensor<1x2x3x?xi1>) -> tensor<1x2x3x?xi1>
+
+  %extracted = tensor.extract %filled[%c0, %c0, %c0, %c0] : tensor<1x2x3x?xi1>
+
+  //  CHECK:   return %[[ARG0]]
+  return %extracted : i1
 }
 
 // -----
@@ -870,3 +897,14 @@ func.func @cast_producer_mixed(%arg0 : tensor<5xf32>, %arg1: memref<?xf32>) {
 //  CHECK-SAME:    iterator_types = ["parallel"]
 //  CHECK-SAME:  } ins(%[[ARG1]] : tensor<5xf32>)
 //  CHECK-SAME:    outs(%[[ARG2]] : memref<?xf32>) {
+
+// -----
+
+// CHECK-LABEL: dead_softmax
+func.func @dead_softmax(%arg0: tensor<16x64x256xf32>) -> tensor<16x64x256xf32> {
+  %0 = tensor.empty() : tensor<16x64x256xf32>
+  // CHECK-NOT: linalg.softmax
+  %1 = linalg.softmax dimension(1)
+    ins(%arg0 : tensor<16x64x256xf32>) outs(%0 : tensor<16x64x256xf32>) -> tensor<16x64x256xf32>
+  return %arg0 : tensor<16x64x256xf32>
+}

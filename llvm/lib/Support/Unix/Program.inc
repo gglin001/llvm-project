@@ -1,5 +1,4 @@
-//===- llvm/Support/Unix/Program.cpp -----------------------------*- C++
-//-*-===//
+//===- llvm/Support/Unix/Program.inc ----------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 //===----------------------------------------------------------------------===//
-//=== WARNING: Implementation here must contain only generic UNIX code that
-//===          is guaranteed to work on *all* UNIX variants.
+//=== WARNING: Implementation here must contain only generic UNIX
+//===          code that is guaranteed to work on *all* UNIX variants.
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/Program.h"
@@ -341,10 +340,10 @@ static bool Execute(ProcessInfo &PI, StringRef Program,
 namespace llvm {
 namespace sys {
 
-#ifndef _AIX
-using ::wait4;
-#else
+#if defined(_AIX)
 static pid_t(wait4)(pid_t pid, int *status, int options, struct rusage *usage);
+#elif !defined(__Fuchsia__)
+using ::wait4;
 #endif
 
 } // namespace sys
@@ -384,17 +383,23 @@ pid_t(llvm::sys::wait4)(pid_t pid, int *status, int options,
 }
 #endif
 
-ProcessInfo llvm::sys::Wait(const ProcessInfo &PI, unsigned SecondsToWait,
-                            bool WaitUntilTerminates, std::string *ErrMsg,
-                            std::optional<ProcessStatistics> *ProcStat) {
+ProcessInfo llvm::sys::Wait(const ProcessInfo &PI,
+                            std::optional<unsigned> SecondsToWait,
+                            std::string *ErrMsg,
+                            std::optional<ProcessStatistics> *ProcStat,
+                            bool Polling) {
   struct sigaction Act, Old;
   assert(PI.Pid && "invalid pid to wait on, process not started?");
 
   int WaitPidOptions = 0;
   pid_t ChildPid = PI.Pid;
-  if (WaitUntilTerminates) {
-    SecondsToWait = 0;
-  } else if (SecondsToWait) {
+  bool WaitUntilTerminates = false;
+  if (!SecondsToWait) {
+    WaitUntilTerminates = true;
+  } else {
+    if (*SecondsToWait == 0)
+      WaitPidOptions = WNOHANG;
+
     // Install a timeout handler.  The handler itself does nothing, but the
     // simple fact of having a handler at all causes the wait below to return
     // with EINTR, unlike if we used SIG_IGN.
@@ -403,13 +408,13 @@ ProcessInfo llvm::sys::Wait(const ProcessInfo &PI, unsigned SecondsToWait,
     sigemptyset(&Act.sa_mask);
     sigaction(SIGALRM, &Act, &Old);
     // FIXME The alarm signal may be delivered to another thread.
-    alarm(SecondsToWait);
-  } else if (SecondsToWait == 0)
-    WaitPidOptions = WNOHANG;
+    alarm(*SecondsToWait);
+  }
 
   // Parent process: Wait for the child process to terminate.
-  int status;
+  int status = 0;
   ProcessInfo WaitResult;
+#ifndef __Fuchsia__
   rusage Info;
   if (ProcStat)
     ProcStat->reset();
@@ -417,13 +422,14 @@ ProcessInfo llvm::sys::Wait(const ProcessInfo &PI, unsigned SecondsToWait,
   do {
     WaitResult.Pid = sys::wait4(ChildPid, &status, WaitPidOptions, &Info);
   } while (WaitUntilTerminates && WaitResult.Pid == -1 && errno == EINTR);
+#endif
 
   if (WaitResult.Pid != PI.Pid) {
     if (WaitResult.Pid == 0) {
       // Non-blocking wait.
       return WaitResult;
     } else {
-      if (SecondsToWait && errno == EINTR) {
+      if (SecondsToWait && errno == EINTR && !Polling) {
         // Kill the child.
         kill(PI.Pid, SIGKILL);
 
@@ -455,6 +461,7 @@ ProcessInfo llvm::sys::Wait(const ProcessInfo &PI, unsigned SecondsToWait,
     sigaction(SIGALRM, &Old, nullptr);
   }
 
+#ifndef __Fuchsia__
   if (ProcStat) {
     std::chrono::microseconds UserT = toDuration(Info.ru_utime);
     std::chrono::microseconds KernelT = toDuration(Info.ru_stime);
@@ -464,6 +471,7 @@ ProcessInfo llvm::sys::Wait(const ProcessInfo &PI, unsigned SecondsToWait,
 #endif
     *ProcStat = ProcessStatistics{UserT + KernelT, UserT, PeakMemory};
   }
+#endif
 
   // Return the proper exit status. Detect error conditions
   // so we can return -1 for them and set ErrMsg informatively.

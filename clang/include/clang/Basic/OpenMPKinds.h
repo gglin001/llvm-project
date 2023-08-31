@@ -83,7 +83,7 @@ enum OpenMPMapModifierKind {
   OMPC_MAP_MODIFIER_last
 };
 
-  /// Number of allowed map-type-modifiers.
+/// Number of allowed map-type-modifiers.
 static constexpr unsigned NumberOfOMPMapClauseModifiers =
     OMPC_MAP_MODIFIER_last - OMPC_MAP_MODIFIER_unknown - 1;
 
@@ -167,6 +167,14 @@ enum OpenMPOrderClauseKind {
   OMPC_ORDER_unknown,
 };
 
+/// OpenMP modifiers for 'order' clause.
+enum OpenMPOrderClauseModifier {
+  OMPC_ORDER_MODIFIER_unknown = OMPC_ORDER_unknown,
+#define OPENMP_ORDER_MODIFIER(Name) OMPC_ORDER_MODIFIER_##Name,
+#include "clang/Basic/OpenMPKinds.def"
+  OMPC_ORDER_MODIFIER_last
+};
+
 /// Scheduling data for loop-based OpenMP directives.
 struct OpenMPScheduleTy final {
   OpenMPScheduleClauseKind Schedule = OMPC_SCHEDULE_unknown;
@@ -205,6 +213,13 @@ enum OpenMPNumTasksClauseModifier {
 #define OPENMP_NUMTASKS_MODIFIER(Name) OMPC_NUMTASKS_##Name,
 #include "clang/Basic/OpenMPKinds.def"
   OMPC_NUMTASKS_unknown
+};
+
+/// OpenMP dependence types for 'doacross' clause.
+enum OpenMPDoacrossClauseModifier {
+#define OPENMP_DOACROSS_MODIFIER(Name) OMPC_DOACROSS_##Name,
+#include "clang/Basic/OpenMPKinds.def"
+  OMPC_DOACROSS_unknown
 };
 
 /// Contains 'interop' data for 'append_args' and 'init' clauses.
@@ -334,6 +349,20 @@ bool isOpenMPLoopTransformationDirective(OpenMPDirectiveKind DKind);
 void getOpenMPCaptureRegions(
     llvm::SmallVectorImpl<OpenMPDirectiveKind> &CaptureRegions,
     OpenMPDirectiveKind DKind);
+
+/// Checks if the specified directive is a combined construct for which
+/// the first construct is a parallel construct.
+/// \param DKind Specified directive.
+/// \return true - if the above condition is met for this directive
+/// otherwise - false.
+bool isOpenMPCombinedParallelADirective(OpenMPDirectiveKind DKind);
+
+/// Checks if the specified target directive, combined or not, needs task based
+/// thread_limit
+/// \param DKind Specified directive.
+/// \return true - if the above condition is met for this directive
+/// otherwise - false.
+bool needsTaskBasedThreadLimit(OpenMPDirectiveKind DKind);
 }
 
 #endif

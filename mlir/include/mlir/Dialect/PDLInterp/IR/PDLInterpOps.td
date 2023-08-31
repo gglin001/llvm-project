@@ -89,7 +89,8 @@ def PDLInterp_ApplyConstraintOp : PDLInterp_PredicateOp<"apply_constraint"> {
     `pdl_interp.apply_constraint` operations apply a generic constraint, that
     has been registered with the interpreter, with a given set of positional
     values. On success, this operation branches to the true destination,
-    otherwise the false destination is taken.
+    otherwise the false destination is taken. This behavior can be reversed
+    by setting the attribute `isNegated` to true.
 
     Example:
 
@@ -100,7 +101,9 @@ def PDLInterp_ApplyConstraintOp : PDLInterp_PredicateOp<"apply_constraint"> {
     ```
   }];
 
-  let arguments = (ins StrAttr:$name, Variadic<PDL_AnyType>:$args);
+  let arguments = (ins StrAttr:$name, 
+                       Variadic<PDL_AnyType>:$args,
+                       DefaultValuedAttr<BoolAttr, "false">:$isNegated);
   let assemblyFormat = [{
     $name `(` $args `:` type($args) `)` attr-dict `->` successors
   }];
@@ -558,7 +561,7 @@ def PDLInterp_ExtractOp
   let builders = [
     OpBuilder<(ins "Value":$range, "unsigned":$index), [{
       build($_builder, $_state,
-            range.getType().cast<pdl::RangeType>().getElementType(),
+            ::llvm::cast<pdl::RangeType>(range.getType()).getElementType(),
             range, index);
     }]>,
   ];
@@ -630,7 +633,7 @@ def PDLInterp_ForEachOp
 //===----------------------------------------------------------------------===//
 
 def PDLInterp_FuncOp : PDLInterp_Op<"func", [
-    FunctionOpInterface, IsolatedFromAbove, Symbol
+    FunctionOpInterface, IsolatedFromAbove
   ]> {
   let summary = "PDL Interpreter Function Operation";
   let description = [{
@@ -652,7 +655,9 @@ def PDLInterp_FuncOp : PDLInterp_Op<"func", [
 
   let arguments = (ins
     SymbolNameAttr:$sym_name,
-    TypeAttrOf<FunctionType>:$function_type
+    TypeAttrOf<FunctionType>:$function_type,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs
   );
   let regions = (region MinSizedRegion<1>:$body);
 
@@ -814,7 +819,7 @@ def PDLInterp_GetOperandsOp : PDLInterp_Op<"get_operands", [Pure]> {
   let assemblyFormat = "($index^)? `of` $inputOp `:` type($value) attr-dict";
   let builders = [
     OpBuilder<(ins "Type":$resultType, "Value":$inputOp,
-                   "Optional<unsigned>":$index), [{
+                   "std::optional<unsigned>":$index), [{
       build($_builder, $_state, resultType, inputOp,
             index ? $_builder.getI32IntegerAttr(*index) : IntegerAttr());
     }]>,
@@ -881,7 +886,7 @@ def PDLInterp_GetResultsOp : PDLInterp_Op<"get_results", [Pure]> {
   let assemblyFormat = "($index^)? `of` $inputOp `:` type($value) attr-dict";
   let builders = [
     OpBuilder<(ins "Type":$resultType, "Value":$inputOp,
-                   "Optional<unsigned>":$index), [{
+                   "std::optional<unsigned>":$index), [{
       build($_builder, $_state, resultType, inputOp,
             index ? $_builder.getI32IntegerAttr(*index) : IntegerAttr());
     }]>,
@@ -961,7 +966,7 @@ def PDLInterp_GetValueTypeOp : PDLInterp_Op<"get_value_type", [Pure,
       Type valType = value.getType();
       Type typeType = $_builder.getType<pdl::TypeType>();
       build($_builder, $_state,
-            valType.isa<pdl::RangeType>() ? pdl::RangeType::get(typeType)
+            ::llvm::isa<pdl::RangeType>(valType) ? pdl::RangeType::get(typeType)
                                           : typeType,
             value);
     }]>

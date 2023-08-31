@@ -214,8 +214,10 @@ static MIToken::TokenKind getIdentifierKind(StringRef Identifier) {
       .Case("nsw", MIToken::kw_nsw)
       .Case("exact", MIToken::kw_exact)
       .Case("nofpexcept", MIToken::kw_nofpexcept)
+      .Case("unpredictable", MIToken::kw_unpredictable)
       .Case("debug-location", MIToken::kw_debug_location)
       .Case("debug-instr-number", MIToken::kw_debug_instr_number)
+      .Case("dbg-instr-ref", MIToken::kw_dbg_instr_ref)
       .Case("same_value", MIToken::kw_cfi_same_value)
       .Case("offset", MIToken::kw_cfi_offset)
       .Case("rel_offset", MIToken::kw_cfi_rel_offset)
@@ -279,6 +281,8 @@ static MIToken::TokenKind getIdentifierKind(StringRef Identifier) {
       .Case("ir-block-address-taken", MIToken::kw_ir_block_address_taken)
       .Case("machine-block-address-taken",
             MIToken::kw_machine_block_address_taken)
+      .Case("call-frame-size", MIToken::kw_call_frame_size)
+      .Case("noconvergent", MIToken::kw_noconvergent)
       .Default(MIToken::Identifier);
 }
 
