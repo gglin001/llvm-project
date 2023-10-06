@@ -36,6 +36,7 @@
         "MLIR_BINDINGS_PYTHON_ENABLED": "ON",
         "MLIR_INCLUDE_DOCS": "OFF",
         "MLIR_INCLUDE_TESTS": "ON",
+        "MLIR_ENABLE_BINDINGS_PYTHON": "ON",
         // "CMAKE_VERBOSE_MAKEFILE": "OFF",
         "LLVM_ENABLE_ZSTD": "OFF",
         // "Python3_EXECUTABLE": "/opt/conda/envs/pyenv/bin/python",
@@ -48,6 +49,7 @@
     // "clangd.path": "/opt/conda/envs/pyenv/bin/clangd",
     "terminal.integrated.env.linux": {
         // "PATH": "${workspaceFolder}/build/bin:${env:PATH}",
-        "PATH": "${workspaceFolder}/build/install/bin:${env:PATH}",
+        // "PATH": "${workspaceFolder}/build/install/bin:${env:PATH}",
+        "EXT_PATH": "${workspaceFolder}/build/install/bin",
     },
 }
