@@ -357,8 +357,8 @@ private:
   /// to the number of named operands that predicate expects. Store locations in
   /// StoreIdxForName correspond to the order in which operand names appear in
   /// predicate's argument list.
-  /// When we visit named leaf operand and WaitingForNamedOperands is not zero,
-  /// add matcher that will record operand and decrease counter.
+  /// When we visit named operand and WaitingForNamedOperands is not zero, add
+  /// matcher that will record operand and decrease counter.
   unsigned WaitingForNamedOperands = 0;
   StringMap<unsigned> StoreIdxForName;
 
@@ -787,13 +787,11 @@ Expected<InstructionMatcher &> GlobalISelEmitter::createAndImportSelDAGMatcher(
     }
   }
 
-  bool IsAtomic = false;
   if (SrcGIEquivOrNull &&
       SrcGIEquivOrNull->getValueAsBit("CheckMMOIsNonAtomic"))
     InsnMatcher.addPredicate<AtomicOrderingMMOPredicateMatcher>("NotAtomic");
   else if (SrcGIEquivOrNull &&
            SrcGIEquivOrNull->getValueAsBit("CheckMMOIsAtomic")) {
-    IsAtomic = true;
     InsnMatcher.addPredicate<AtomicOrderingMMOPredicateMatcher>(
         "Unordered", AtomicOrderingMMOPredicateMatcher::AO_OrStronger);
   }
@@ -845,27 +843,6 @@ Expected<InstructionMatcher &> GlobalISelEmitter::createAndImportSelDAGMatcher(
           --NumChildren;
         }
       }
-    }
-
-    // Hack around an unfortunate mistake in how atomic store (and really
-    // atomicrmw in general) operands were ordered. A ISD::STORE used the order
-    // <stored value>, <pointer> order. ISD::ATOMIC_STORE used the opposite,
-    // <pointer>, <stored value>. In GlobalISel there's just the one store
-    // opcode, so we need to swap the operands here to get the right type check.
-    if (IsAtomic && SrcGIOrNull->TheDef->getName() == "G_STORE") {
-      assert(NumChildren == 2 && "wrong operands for atomic store");
-
-      const TreePatternNode *PtrChild = Src->getChild(0);
-      const TreePatternNode *ValueChild = Src->getChild(1);
-
-      if (auto Error = importChildMatcher(Rule, InsnMatcher, PtrChild, true,
-                                          false, 1, TempOpIdx))
-        return std::move(Error);
-
-      if (auto Error = importChildMatcher(Rule, InsnMatcher, ValueChild, false,
-                                          false, 0, TempOpIdx))
-        return std::move(Error);
-      return InsnMatcher;
     }
 
     // Match the used operands (i.e. the children of the operator).
@@ -1020,6 +997,17 @@ Error GlobalISelEmitter::importChildMatcher(
                           to_string(*SrcChild) + ")");
   }
 
+  // Try look up SrcChild for a (named) predicate operand if there is any.
+  if (WaitingForNamedOperands) {
+    auto &ScopedNames = SrcChild->getNamesAsPredicateArg();
+    if (!ScopedNames.empty()) {
+      auto PA = ScopedNames.begin();
+      std::string Name = getScopedName(PA->getScope(), PA->getIdentifier());
+      OM.addPredicate<RecordNamedOperandMatcher>(StoreIdxForName[Name], Name);
+      --WaitingForNamedOperands;
+    }
+  }
+
   // Check for nested instructions.
   if (!SrcChild->isLeaf()) {
     if (SrcChild->getOperator()->isSubClassOf("ComplexPattern")) {
@@ -1083,13 +1071,6 @@ Error GlobalISelEmitter::importChildMatcher(
   // Check for def's like register classes or ComplexPattern's.
   if (auto *ChildDefInit = dyn_cast<DefInit>(SrcChild->getLeafValue())) {
     auto *ChildRec = ChildDefInit->getDef();
-
-    if (WaitingForNamedOperands) {
-      auto PA = SrcChild->getNamesAsPredicateArg().begin();
-      std::string Name = getScopedName(PA->getScope(), PA->getIdentifier());
-      OM.addPredicate<RecordNamedOperandMatcher>(StoreIdxForName[Name], Name);
-      --WaitingForNamedOperands;
-    }
 
     // Check for register classes.
     if (ChildRec->isSubClassOf("RegisterClass") ||

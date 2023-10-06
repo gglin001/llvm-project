@@ -205,6 +205,21 @@ mlir::Block *fir::FirOpBuilder::getAllocaBlock() {
   return iface ? iface.getAllocaBlock() : getEntryBlock();
 }
 
+mlir::Value fir::FirOpBuilder::createTemporaryAlloc(
+    mlir::Location loc, mlir::Type type, llvm::StringRef name,
+    mlir::ValueRange lenParams, mlir::ValueRange shape,
+    llvm::ArrayRef<mlir::NamedAttribute> attrs) {
+  assert(!type.isa<fir::ReferenceType>() && "cannot be a reference");
+  // If the alloca is inside an OpenMP Op which will be outlined then pin
+  // the alloca here.
+  const bool pinned =
+      getRegion().getParentOfType<mlir::omp::OutlineableOpenMPOpInterface>();
+  mlir::Value temp =
+      create<fir::AllocaOp>(loc, type, /*unique_name=*/llvm::StringRef{}, name,
+                            pinned, lenParams, shape, attrs);
+  return temp;
+}
+
 /// Create a temporary variable on the stack. Anonymous temporaries have no
 /// `name` value. Temporaries do not require a uniqued name.
 mlir::Value
@@ -223,14 +238,9 @@ fir::FirOpBuilder::createTemporary(mlir::Location loc, mlir::Type type,
     setInsertionPointToStart(getAllocaBlock());
   }
 
-  // If the alloca is inside an OpenMP Op which will be outlined then pin the
-  // alloca here.
-  const bool pinned =
-      getRegion().getParentOfType<mlir::omp::OutlineableOpenMPOpInterface>();
-  assert(!type.isa<fir::ReferenceType>() && "cannot be a reference");
-  auto ae =
-      create<fir::AllocaOp>(loc, type, /*unique_name=*/llvm::StringRef{}, name,
-                            pinned, dynamicLength, dynamicShape, attrs);
+  mlir::Value ae =
+      createTemporaryAlloc(loc, type, name, dynamicLength, dynamicShape, attrs);
+
   if (hoistAlloc)
     restoreInsertionPoint(insPt);
   return ae;
@@ -287,18 +297,6 @@ fir::GlobalOp fir::FirOpBuilder::createGlobal(
   bodyBuilder(*this);
   restoreInsertionPoint(insertPt);
   return glob;
-}
-
-fir::DispatchTableOp fir::FirOpBuilder::createDispatchTableOp(
-    mlir::Location loc, llvm::StringRef name, llvm::StringRef parentName) {
-  auto module = getModule();
-  auto insertPt = saveInsertionPoint();
-  if (auto dt = module.lookupSymbol<fir::DispatchTableOp>(name))
-    return dt;
-  setInsertionPoint(module.getBody(), module.getBody()->end());
-  auto dt = create<fir::DispatchTableOp>(loc, name, mlir::Type{}, parentName);
-  restoreInsertionPoint(insertPt);
-  return dt;
 }
 
 mlir::Value

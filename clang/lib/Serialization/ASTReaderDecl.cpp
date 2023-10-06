@@ -13,6 +13,7 @@
 
 #include "ASTCommon.h"
 #include "ASTReaderInternals.h"
+#include "clang/AST/ASTConcept.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTStructuralEquivalence.h"
 #include "clang/AST/Attr.h"
@@ -1706,6 +1707,7 @@ void ASTDeclReader::VisitParmVarDecl(ParmVarDecl *PD) {
   PD->ParmVarDeclBits.HasInheritedDefaultArg = Record.readInt();
   if (Record.readInt()) // hasUninstantiatedDefaultArg.
     PD->setUninstantiatedDefaultArg(Record.readExpr());
+  PD->ExplicitObjectParameterIntroducerLoc = Record.readSourceLocation();
 
   // FIXME: If this is a redeclaration of a function from another module, handle
   // inheritance of default arguments.
@@ -2000,13 +2002,16 @@ void ASTDeclReader::ReadCXXDefinitionData(
       case LCK_StarThis:
       case LCK_This:
       case LCK_VLAType:
-        *ToCapture++ = Capture(Loc, IsImplicit, Kind, nullptr,SourceLocation());
+        new (ToCapture)
+            Capture(Loc, IsImplicit, Kind, nullptr, SourceLocation());
+        ToCapture++;
         break;
       case LCK_ByCopy:
       case LCK_ByRef:
         auto *Var = readDeclAs<VarDecl>();
         SourceLocation EllipsisLoc = readSourceLocation();
-        *ToCapture++ = Capture(Loc, IsImplicit, Kind, Var, EllipsisLoc);
+        new (ToCapture) Capture(Loc, IsImplicit, Kind, Var, EllipsisLoc);
+        ToCapture++;
         break;
       }
     }
@@ -2633,15 +2638,12 @@ void ASTDeclReader::VisitTemplateTypeParmDecl(TemplateTypeParmDecl *D) {
   D->setDeclaredWithTypename(Record.readInt());
 
   if (Record.readBool()) {
-    NestedNameSpecifierLoc NNS = Record.readNestedNameSpecifierLoc();
-    DeclarationNameInfo DN = Record.readDeclarationNameInfo();
-    ConceptDecl *NamedConcept = Record.readDeclAs<ConceptDecl>();
-    const ASTTemplateArgumentListInfo *ArgsAsWritten = nullptr;
+    ConceptReference *CR = nullptr;
     if (Record.readBool())
-        ArgsAsWritten = Record.readASTTemplateArgumentListInfo();
+      CR = Record.readConceptReference();
     Expr *ImmediatelyDeclaredConstraint = Record.readExpr();
-    D->setTypeConstraint(NNS, DN, /*FoundDecl=*/nullptr, NamedConcept,
-                         ArgsAsWritten, ImmediatelyDeclaredConstraint);
+
+    D->setTypeConstraint(CR, ImmediatelyDeclaredConstraint);
     if ((D->ExpandedParameterPack = Record.readInt()))
       D->NumExpanded = Record.readInt();
   }
