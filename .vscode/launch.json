@@ -11,9 +11,16 @@
             "cwd": "${workspaceFolder}",
             "terminal": "console",
             // "program": "${workspaceFolder}/build/tools/mlir/unittests/ExecutionEngine/MLIRExecutionEngineTests",
-            "program": "${command:cmake.launchTargetPath}",
+            // "program": "${command:cmake.launchTargetPath}",
+            "program": "${workspaceFolder}/build/bin/llc",
             "args": [
-                "--gtest_filter=*AddInteger",
+                // // build/tools/mlir/unittests/ExecutionEngine/MLIRExecutionEngineTests --gtest_filter=*AddInteger
+                // "--gtest_filter=*AddInteger",
+                //
+                // // llc -mtriple=riscv32 < llvm/test/CodeGen/RISCV/add-imm.ll
+                "llvm/test/CodeGen/RISCV/add-imm.ll",
+                "-mtriple=riscv32",
+                //
             ],
             "initCommands": [
                 "settings set target.disable-aslr false",
