@@ -665,6 +665,50 @@ def : GCNPat<
   (SI_TCRETURN_GFX Gfx_CCR_SGPR_64:$src0, (i64 0), i32imm:$fpdiff)
 >;
 
+// Pseudo for the llvm.amdgcn.cs.chain intrinsic.
+// This is essentially a tail call, but it also takes a mask to put in EXEC
+// right before jumping to the callee.
+class SI_CS_CHAIN_TC<
+    ValueType execvt, Predicate wavesizepred,
+    RegisterOperand execrc = getSOPSrcForVT<execvt>.ret>
+    : SPseudoInstSI <(outs),
+      (ins CCR_SGPR_64:$src0, unknown:$callee, i32imm:$fpdiff, execrc:$exec)> {
+  let FixedSize = 0;
+  let isCall = 1;
+  let isTerminator = 1;
+  let isBarrier = 1;
+  let isReturn = 1;
+  let UseNamedOperandTable = 1;
+  let SchedRW = [WriteBranch];
+  let isConvergent = 1;
+
+  let WaveSizePredicate = wavesizepred;
+}
+
+def SI_CS_CHAIN_TC_W32 : SI_CS_CHAIN_TC<i32, isWave32>;
+def SI_CS_CHAIN_TC_W64 : SI_CS_CHAIN_TC<i64, isWave64>;
+
+// Handle selecting direct & indirect calls via SI_CS_CHAIN_TC_W32/64
+multiclass si_cs_chain_tc_pattern<
+  dag callee, ValueType execvt, RegisterOperand execrc, Instruction tc> {
+def : GCNPat<
+  (AMDGPUtc_return_chain i64:$src0, callee, (i32 timm:$fpdiff), execvt:$exec),
+  (tc CCR_SGPR_64:$src0, callee, i32imm:$fpdiff, execrc:$exec)
+>;
+}
+
+multiclass si_cs_chain_tc_patterns<
+  ValueType execvt,
+  RegisterOperand execrc = getSOPSrcForVT<execvt>.ret,
+  Instruction tc = !if(!eq(execvt, i32), SI_CS_CHAIN_TC_W32, SI_CS_CHAIN_TC_W64)
+  > {
+  defm direct: si_cs_chain_tc_pattern<(tglobaladdr:$callee), execvt, execrc, tc>;
+  defm indirect: si_cs_chain_tc_pattern<(i64 0), execvt, execrc, tc>;
+}
+
+defm : si_cs_chain_tc_patterns<i32>;
+defm : si_cs_chain_tc_patterns<i64>;
+
 def ADJCALLSTACKUP : SPseudoInstSI<
   (outs), (ins i32imm:$amt0, i32imm:$amt1),
   [(callseq_start timm:$amt0, timm:$amt1)],
@@ -1964,6 +2008,29 @@ def : GCNPat <
 def : GCNPat <
   (VGPRImm<(f16 fpimm)>:$imm),
   (V_MOV_B32_e32 (f16 (bitcast_fpimm_to_i32 $imm)))
+>;
+
+// V_MOV_B64_PSEUDO and S_MOV_B64_IMM_PSEUDO can be used with any 64-bit
+// immediate and wil be expanded as needed, but we will only use these patterns
+// for values which can be encoded.
+def : GCNPat <
+  (VGPRImm<(i64 imm)>:$imm),
+  (V_MOV_B64_PSEUDO imm:$imm)
+>;
+
+def : GCNPat <
+  (VGPRImm<(f64 fpimm)>:$imm),
+  (V_MOV_B64_PSEUDO (f64 (bitcast_fpimm_to_i64 $imm)))
+>;
+
+def : GCNPat <
+  (i64 imm:$imm),
+  (S_MOV_B64_IMM_PSEUDO imm:$imm)
+>;
+
+def : GCNPat <
+  (f64 fpimm:$imm),
+  (S_MOV_B64_IMM_PSEUDO (i64 (bitcast_fpimm_to_i64 fpimm:$imm)))
 >;
 
 def : GCNPat <

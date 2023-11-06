@@ -34,6 +34,7 @@
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/CodeMetrics.h"
+#include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/DemandedBits.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/IVDescriptors.h"
@@ -6286,8 +6287,8 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
         if (!CI)
           Operands.back().push_back(Op);
         else
-          Operands.back().push_back(ConstantExpr::getIntegerCast(
-              CI, Ty, CI->getValue().isSignBitSet()));
+          Operands.back().push_back(ConstantFoldIntegerCast(
+              CI, Ty, CI->getValue().isSignBitSet(), *DL));
       }
       TE->setOperand(IndexIdx, Operands.back());
 
@@ -7580,8 +7581,8 @@ public:
     auto *MaskVecTy =
         FixedVectorType::get(E1.Scalars.front()->getType(), Mask.size());
     unsigned NumParts = TTI.getNumberOfParts(MaskVecTy);
-    assert(NumParts > 0 && NumParts < Mask.size() &&
-           "Expected positive number of registers.");
+    if (NumParts == 0 || NumParts >= Mask.size())
+      NumParts = 1;
     unsigned SliceSize = Mask.size() / NumParts;
     const auto *It =
         find_if(Mask, [](int Idx) { return Idx != PoisonMaskElem; });
@@ -7598,8 +7599,8 @@ public:
     auto *MaskVecTy =
         FixedVectorType::get(E1.Scalars.front()->getType(), Mask.size());
     unsigned NumParts = TTI.getNumberOfParts(MaskVecTy);
-    assert(NumParts > 0 && NumParts < Mask.size() &&
-           "Expected positive number of registers.");
+    if (NumParts == 0 || NumParts >= Mask.size())
+      NumParts = 1;
     unsigned SliceSize = Mask.size() / NumParts;
     const auto *It =
         find_if(Mask, [](int Idx) { return Idx != PoisonMaskElem; });
@@ -10815,13 +10816,7 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E, bool PostponedPHIs) {
           continue;
         }
 
-        // if (any_of(E->getOperand(i), [&](Value *V) {
-        //       auto *I = dyn_cast<Instruction>(V);
-        //       return I && I->getParent() == IBB;
-        //     }))
-          Builder.SetInsertPoint(IBB->getTerminator());
-        // else
-        //   Builder.SetInsertPoint(IBB->getFirstNonPHIOrDbgOrLifetime());
+        Builder.SetInsertPoint(IBB->getTerminator());
         Builder.SetCurrentDebugLocation(PH->getDebugLoc());
         Value *Vec = vectorizeOperand(E, i, /*PostponedPHIs=*/true);
         NewPhi->addIncoming(Vec, IBB);
@@ -13667,10 +13662,12 @@ class HorizontalReduction {
   static Value *createOp(IRBuilder<> &Builder, RecurKind RdxKind, Value *LHS,
                          Value *RHS, const Twine &Name,
                          const ReductionOpsListType &ReductionOps) {
-    bool UseSelect = ReductionOps.size() == 2 ||
-                     // Logical or/and.
-                     (ReductionOps.size() == 1 &&
-                      isa<SelectInst>(ReductionOps.front().front()));
+    bool UseSelect =
+        ReductionOps.size() == 2 ||
+        // Logical or/and.
+        (ReductionOps.size() == 1 && any_of(ReductionOps.front(), [](Value *V) {
+           return isa<SelectInst>(V);
+         }));
     assert((!UseSelect || ReductionOps.size() != 2 ||
             isa<SelectInst>(ReductionOps[1][0])) &&
            "Expected cmp + select pairs for reduction");
@@ -14104,12 +14101,26 @@ public:
         // Update the final value in the reduction.
         Builder.SetCurrentDebugLocation(
             cast<Instruction>(ReductionOps.front().front())->getDebugLoc());
+        if ((isa<PoisonValue>(VectorizedTree) && !isa<PoisonValue>(Res)) ||
+            (isGuaranteedNotToBePoison(Res) &&
+             !isGuaranteedNotToBePoison(VectorizedTree))) {
+          auto It = ReducedValsToOps.find(Res);
+          if (It != ReducedValsToOps.end() &&
+              any_of(It->getSecond(),
+                     [](Instruction *I) { return isBoolLogicOp(I); }))
+            std::swap(VectorizedTree, Res);
+        }
+
         return createOp(Builder, RdxKind, VectorizedTree, Res, "op.rdx",
                         ReductionOps);
       }
       // Initialize the final value in the reduction.
       return Res;
     };
+    bool AnyBoolLogicOp =
+        any_of(ReductionOps.back(), [](Value *V) {
+          return isBoolLogicOp(cast<Instruction>(V));
+        });
     // The reduction root is used as the insertion point for new instructions,
     // so set it as externally used to prevent it from being deleted.
     ExternallyUsedValues[ReductionRoot];
@@ -14442,7 +14453,9 @@ public:
         // To prevent poison from leaking across what used to be sequential,
         // safe, scalar boolean logic operations, the reduction operand must be
         // frozen.
-        if (isBoolLogicOp(RdxRootInst))
+        if ((isBoolLogicOp(RdxRootInst) ||
+             (AnyBoolLogicOp && VL.size() != TrackedVals.size())) &&
+            !isGuaranteedNotToBePoison(VectorizedRoot))
           VectorizedRoot = Builder.CreateFreeze(VectorizedRoot);
 
         // Emit code to correctly handle reused reduced values, if required.
@@ -14510,15 +14523,15 @@ public:
                                                    Instruction *RedOp1,
                                                    Instruction *RedOp2,
                                                    bool InitStep) {
-        if (!isBoolLogicOp(RedOp1))
+        if (!AnyBoolLogicOp)
           return;
-        if ((!InitStep && LHS == VectorizedTree) ||
-            getRdxOperand(RedOp1, 0) == LHS || isGuaranteedNotToBePoison(LHS))
+        if (isBoolLogicOp(RedOp1) &&
+            ((!InitStep && LHS == VectorizedTree) ||
+             getRdxOperand(RedOp1, 0) == LHS || isGuaranteedNotToBePoison(LHS)))
           return;
-        if (!isBoolLogicOp(RedOp2))
-          return;
-        if ((!InitStep && RHS == VectorizedTree) ||
-            getRdxOperand(RedOp2, 0) == RHS || isGuaranteedNotToBePoison(RHS)) {
+        if (isBoolLogicOp(RedOp2) && ((!InitStep && RHS == VectorizedTree) ||
+                                      getRdxOperand(RedOp2, 0) == RHS ||
+                                      isGuaranteedNotToBePoison(RHS))) {
           std::swap(LHS, RHS);
           return;
         }
@@ -15716,8 +15729,8 @@ bool SLPVectorizerPass::vectorizeChainsInBlock(BasicBlock *BB, BoUpSLP &R) {
         // to investigate if we can safely turn on slp-vectorize-hor-store
         // instead to allow lookup for reduction chains in all non-vectorized
         // stores (need to check side effects and compile time).
-        TryToVectorizeRoot = (I == Stores.end() || I->second.size() == 1) &&
-                             SI->getValueOperand()->hasOneUse();
+        TryToVectorizeRoot |= (I == Stores.end() || I->second.size() == 1) &&
+                              SI->getValueOperand()->hasOneUse();
       }
       if (TryToVectorizeRoot) {
         for (auto *V : it->operand_values()) {
