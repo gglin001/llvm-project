@@ -1,11 +1,23 @@
 {
+    "terminal.integrated.env.linux": {
+        "EXT_PATH": "${workspaceFolder}/build/bin",
+        "EXT_PYTHONPATH": "${workspaceFolder}/build/tools/mlir/python_packages/mlir_core",
+    },
+    "terminal.integrated.env.osx": {
+        "EXT_PATH": "${workspaceFolder}/build/bin",
+        "EXT_PYTHONPATH": "${workspaceFolder}/build/tools/mlir/python_packages/mlir_core",
+    },
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/build/tools/mlir/python_packages/mlir_core",
+    ],
+    "cmake.sourceDirectory": "${workspaceFolder}/llvm",
     "cmake.configureArgs": [
         "-DLLVM_ENABLE_PROJECTS=mlir",
         // "-DLLVM_ENABLE_PROJECTS=mlir;clang;clang-tools-extra",
         // "-DLLVM_ENABLE_RUNTIMES=libcxx;libcxxabi"
     ],
     "cmake.configureSettings": {
-        "CMAKE_INSTALL_PREFIX": "install",
+        "CMAKE_INSTALL_PREFIX": "${workspaceFolder}/build/install",
         "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
         "LLVM_BUILD_EXAMPLES": "ON",
         "LLVM_BUILD_TOOLS": "ON",
@@ -17,7 +29,6 @@
         "LLVM_INCLUDE_TESTS": "ON",
         "LLVM_INCLUDE_TOOLS": "ON",
         "LLVM_INCLUDE_UTILS": "ON",
-        // "LLVM_TARGETS_TO_BUILD": "Native",
         "LLVM_TARGETS_TO_BUILD": "Native;RISCV;Sparc",
         "LLVM_TOOL_LLVM_LTO_BUILD": "ON",
         "LLVM_TOOL_LLVM_LTO2_BUILD": "ON",
@@ -26,20 +37,12 @@
         "MLIR_INCLUDE_DOCS": "OFF",
         "MLIR_INCLUDE_TESTS": "ON",
         "MLIR_ENABLE_BINDINGS_PYTHON": "ON",
-        // "CMAKE_VERBOSE_MAKEFILE": "OFF",
         "LLVM_CCACHE_BUILD": "ON",
-        // "Python3_EXECUTABLE": "/opt/conda/envs/pyenv/bin/python",
+        // "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        // "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        // for macos
+        // "LLVM_ENABLE_ZSTD": false,
+        // "LLVM_ENABLE_TERMINFO": false,
     },
-    "cmake.sourceDirectory": "${workspaceFolder}/llvm",
-    "python.analysis.extraPaths": [
-        "${workspaceFolder}/build/tools/mlir/python_packages/mlir_core",
-    ],
-    "terminal.integrated.env.linux": {
-        "EXT_PATH": "${workspaceFolder}/build/bin",
-        "EXT_PYTHONPATH": "${workspaceFolder}/build/tools/mlir/python_packages/mlir_core",
-    },
-    "terminal.integrated.env.osx": {
-        "EXT_PATH": "${workspaceFolder}/build/bin",
-        "EXT_PYTHONPATH": "${workspaceFolder}/build/tools/mlir/python_packages/mlir_core",
-    },
+    "mlir.server_path": "${workspaceFolder}/build/bin/mlir-lsp-server",
 }
