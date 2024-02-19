@@ -39,6 +39,9 @@
         "LLVM_TOOL_LLVM_LTO2_BUILD": "ON",
         "LLVM_TOOL_LTO_BUILD": "ON",
         "MLIR_ENABLE_BINDINGS_PYTHON": "ON",
+        "MLIR_ENABLE_SPIRV_CPU_RUNNER": "ON",
+        "MLIR_ENABLE_VULKAN_RUNNER": "OFF",
+        // ccache
         // "CMAKE_C_COMPILER_LAUNCHER": "ccache",
         // "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
         // for macos
