@@ -13,6 +13,7 @@
         "CMAKE_C_COMPILER": "/usr/bin/clang",
         "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
         "CMAKE_INSTALL_RPATH_USE_LINK_PATH": true,
+        "LLVM_ENABLE_LLD": true,
         "LLVM_ENABLE_ASSERTIONS": true,
         "LLVM_ENABLE_WARNINGS": true,
         "LLVM_INCLUDE_EXAMPLES": false,
