@@ -1,0 +1,25 @@
+{
+    "terminal.integrated.env.linux": {
+        "EXT_PATH": "${workspaceFolder}/build/bin",
+        "EXT_PYTHONPATH": "${workspaceFolder}/build/tools/mlir/python_packages/mlir_core",
+    },
+    "terminal.integrated.env.osx": {
+        "EXT_PATH": "${workspaceFolder}/build/bin",
+        "EXT_PYTHONPATH": "${workspaceFolder}/build/tools/mlir/python_packages/mlir_core",
+    },
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/build/tools/mlir/python_packages/mlir_core",
+    ],
+    "files.watcherExclude": {
+        "**/unittests/**": true,
+        "**/test/**": true,
+        "docs/**": true,
+    },
+    // mlir/mlir-custom, needs abs paths
+    "mlir.server_path": "${workspaceFolder}/build/bin/mlir-lsp-server",
+    "mlir.tablegen_server_path": "${workspaceFolder}/build/bin/tblgen-lsp-server",
+    "mlir.pdll_server_path": "${workspaceFolder}/build/bin/mlir-pdll-lsp-server",
+    // cmake
+    "cmake.sourceDirectory": "${workspaceFolder}/llvm",
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+}
