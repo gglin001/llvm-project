@@ -4,7 +4,7 @@ git clone -n --depth=1 --filter=tree:0 -b allen/develop git@github.com:gglin001/
 pushd llvm-project
 git sparse-checkout set --no-cone \
   /clang /cmake /libunwind /lld /llvm /mlir /CMakePresets.json \
-  /_demos
+  /_demos /clang-tools-extra
 
 # git sparse-checkout set --no-cone /cmake /llvm /mlir
 git sparse-checkout list
