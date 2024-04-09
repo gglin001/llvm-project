@@ -5,7 +5,7 @@
       "name": "iree_llvm",
       "description": "for iree_llvm docker env && macos host env",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build",
+      "binaryDir": "${sourceDir}/../build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/install",

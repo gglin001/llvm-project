@@ -21,5 +21,4 @@
     "mlir.pdll_server_path": "${workspaceFolder}/build/bin/mlir-pdll-lsp-server",
     // cmake
     "cmake.sourceDirectory": "${workspaceFolder}/llvm",
-    "cmake.buildDirectory": "${workspaceFolder}/build",
 }
