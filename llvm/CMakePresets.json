@@ -16,6 +16,7 @@
         "LLVM_ENABLE_LLD": true,
         "LLVM_ENABLE_ASSERTIONS": true,
         "LLVM_ENABLE_WARNINGS": true,
+        "LLVM_INCLUDE_DOCS": false,
         "LLVM_INCLUDE_EXAMPLES": false,
         "LLVM_INCLUDE_TESTS": false,
         "LLVM_INCLUDE_UTILS": true,
