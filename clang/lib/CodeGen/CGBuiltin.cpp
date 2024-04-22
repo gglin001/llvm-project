@@ -826,29 +826,32 @@ const FieldDecl *CodeGenFunction::FindFlexibleArrayMemberField(
     ASTContext &Ctx, const RecordDecl *RD, StringRef Name, uint64_t &Offset) {
   const LangOptions::StrictFlexArraysLevelKind StrictFlexArraysLevel =
       getLangOpts().getStrictFlexArraysLevel();
-  unsigned FieldNo = 0;
-  bool IsUnion = RD->isUnion();
+  uint32_t FieldNo = 0;
 
-  for (const Decl *D : RD->decls()) {
-    if (const auto *Field = dyn_cast<FieldDecl>(D);
-        Field && (Name.empty() || Field->getNameAsString() == Name) &&
+  if (RD->isImplicit())
+    return nullptr;
+
+  for (const FieldDecl *FD : RD->fields()) {
+    if ((Name.empty() || FD->getNameAsString() == Name) &&
         Decl::isFlexibleArrayMemberLike(
-            Ctx, Field, Field->getType(), StrictFlexArraysLevel,
+            Ctx, FD, FD->getType(), StrictFlexArraysLevel,
             /*IgnoreTemplateOrMacroSubstitution=*/true)) {
       const ASTRecordLayout &Layout = Ctx.getASTRecordLayout(RD);
       Offset += Layout.getFieldOffset(FieldNo);
-      return Field;
+      return FD;
     }
 
-    if (const auto *Record = dyn_cast<RecordDecl>(D))
-      if (const FieldDecl *Field =
-              FindFlexibleArrayMemberField(Ctx, Record, Name, Offset)) {
+    QualType Ty = FD->getType();
+    if (Ty->isRecordType()) {
+      if (const FieldDecl *Field = FindFlexibleArrayMemberField(
+              Ctx, Ty->getAsRecordDecl(), Name, Offset)) {
         const ASTRecordLayout &Layout = Ctx.getASTRecordLayout(RD);
         Offset += Layout.getFieldOffset(FieldNo);
         return Field;
       }
+    }
 
-    if (!IsUnion && isa<FieldDecl>(D))
+    if (!RD->isUnion())
       ++FieldNo;
   }
 
@@ -3435,6 +3438,15 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     OperandBundleDefT<Value *> OBD("separate_storage", Values);
     Builder.CreateAssumption(ConstantInt::getTrue(getLLVMContext()), {OBD});
     return RValue::get(nullptr);
+  }
+  case Builtin::BI__builtin_allow_runtime_check: {
+    StringRef Kind =
+        cast<StringLiteral>(E->getArg(0)->IgnoreParenCasts())->getString();
+    LLVMContext &Ctx = CGM.getLLVMContext();
+    llvm::Value *Allow = Builder.CreateCall(
+        CGM.getIntrinsic(llvm::Intrinsic::allow_runtime_check),
+        llvm::MetadataAsValue::get(Ctx, llvm::MDString::get(Ctx, Kind)));
+    return RValue::get(Allow);
   }
   case Builtin::BI__arithmetic_fence: {
     // Create the builtin call if FastMath is selected, and the target
@@ -18194,7 +18206,8 @@ Value *CodeGenFunction::EmitHLSLBuiltinExpr(unsigned BuiltinID,
     Value *Op0 = EmitScalarExpr(E->getArg(0));
     return Builder.CreateIntrinsic(
         /*ReturnType=*/llvm::Type::getInt1Ty(getLLVMContext()),
-        Intrinsic::dx_any, ArrayRef<Value *>{Op0}, nullptr, "dx.any");
+        CGM.getHLSLRuntime().getAnyIntrinsic(), ArrayRef<Value *>{Op0}, nullptr,
+        "hlsl.any");
   }
   case Builtin::BI__builtin_hlsl_elementwise_clamp: {
     Value *OpX = EmitScalarExpr(E->getArg(0));
