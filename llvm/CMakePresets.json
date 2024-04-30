@@ -25,7 +25,7 @@
         "LLVM_APPEND_VC_REV": false,
         "LLVM_ENABLE_IDE": true,
         "LLVM_ENABLE_BINDINGS": false,
-        "LLVM_TARGETS_TO_BUILD": "host;RISCV;AArch64",
+        "LLVM_TARGETS_TO_BUILD": "host;RISCV;AArch64;NVPTX;AMDGPU",
         "LLVM_ENABLE_PROJECTS": "mlir;clang;lld",
         "MLIR_ENABLE_BINDINGS_PYTHON": true
       }
