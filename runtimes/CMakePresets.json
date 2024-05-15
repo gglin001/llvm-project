@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "configurePresets": [
+    {
+      "name": "llvm_runtimes",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/../build_runtimes",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/../build_runtimes/install",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+        "CMAKE_C_COMPILER": "/usr/bin/clang",
+        "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
+        "CMAKE_INSTALL_RPATH_USE_LINK_PATH": true,
+        "LLVM_ENABLE_ASSERTIONS": true,
+        // pwd is `DIR/llvm-project-libc`, `PWD/../llvm-project` is `llvm-project`
+        "LLVM_DIR": "${sourceDir}/../llvm-project/build/install/lib/cmake/llvm",
+        // "LLVM_ENABLE_RUNTIMES": "all",
+        "LLVM_ENABLE_RUNTIMES": "libc",
+        "LLVM_INCLUDE_TESTS": false,
+        "UNUSED": "UNUSED"
+      }
+    }
+  ]
+}
