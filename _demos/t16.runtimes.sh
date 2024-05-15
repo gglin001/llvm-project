@@ -22,7 +22,8 @@ cmake --build $PWD/build_libc_hdrgen --target libc-hdrgen
 
 ###############################################################################
 
-cmake --preset llvm_runtimes -S$PWD/runtimes -B$PWD/build_runtimes
+# cmake --preset llvm_runtimes -S$PWD/runtimes -B$PWD/build_runtimes
+cmake --preset llvm_runtimes_riscv -S$PWD/runtimes -B$PWD/build_runtimes
 
 cmake --build $PWD/build_runtimes --target install
 
