@@ -9,15 +9,14 @@
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/../build_runtimes/install",
         "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+        "LIBC_HDRGEN_EXE": "${sourceDir}/../build_libc_hdrgen/bin/libc-hdrgen",
+        "LLVM_ENABLE_RUNTIMES": "libc",
+        "LLVM_LIBC_FULL_BUILD": true,
+        "LLVM_INCLUDE_TESTS": false,
+        // for cross build, need custom CC and CXX
         "CMAKE_C_COMPILER": "/usr/bin/clang",
         "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
-        "CMAKE_INSTALL_RPATH_USE_LINK_PATH": true,
-        "LLVM_ENABLE_ASSERTIONS": true,
-        // pwd is `DIR/llvm-project-libc`, `PWD/../llvm-project` is `llvm-project`
-        "LLVM_DIR": "${sourceDir}/../llvm-project/build/install/lib/cmake/llvm",
-        // "LLVM_ENABLE_RUNTIMES": "all",
-        "LLVM_ENABLE_RUNTIMES": "libc",
-        "LLVM_INCLUDE_TESTS": false,
+        // "LIBC_TARGET_TRIPLE": "riscv64-unknown-elf",
         "UNUSED": "UNUSED"
       }
     }
