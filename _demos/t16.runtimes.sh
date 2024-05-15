@@ -1,15 +1,15 @@
-# git sparse-checkout set --no-cone \
-#   '/*' \
-#   '!/clang/docs' '!/clang/www' '!/llvm/docs' \
-#   '!/clang/test' '!/llvm/test' '!/mlir/test'
-
 git sparse-checkout set --no-cone \
-  /cmake /compiler-rt /libc /runtimes /llvm/cmake \
-  /_demos /.clangd /.vscode /.clang-format /.clang-tidy
+  '/*' \
+  '!/clang/docs' '!/clang/www' '!/llvm/docs' \
+  '!/clang/test' '!/llvm/test' '!/mlir/test'
 
-# for more libs
-git sparse-checkout add --no-cone \
-  /libcxx /libcxxabi /libunwind
+# git sparse-checkout set --no-cone \
+#   /cmake /compiler-rt /libc /runtimes /llvm/cmake \
+#   /_demos /.clangd /.vscode /.clang-format /.clang-tidy
+
+# # for more libs
+# git sparse-checkout add --no-cone \
+#   /libcxx /libcxxabi /libunwind
 
 ###############################################################################
 
