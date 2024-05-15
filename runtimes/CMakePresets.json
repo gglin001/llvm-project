@@ -25,7 +25,8 @@
       "description": "note: tested on osx",
       "inherits": "llvm_runtimes",
       "cacheVariables": {
-        "CMAKE_SYSTEM_NAME": "Linux",
+        // "CMAKE_SYSTEM_NAME": "Linux",
+        "CMAKE_SYSTEM_NAME": "Generic",
         "CMAKE_C_COMPILER_WORKS": true,
         "CMAKE_CXX_COMPILER_WORKS": true,
         // pwd is `DIR/llvm-project-libc`, `PWD/../llvm-project` is `llvm-project`
