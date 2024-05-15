@@ -33,8 +33,8 @@
         "CMAKE_CXX_COMPILER": "${sourceDir}/../../llvm-project/build/install/bin/clang++",
         "CMAKE_LINKER": "${sourceDir}/../../llvm-project/build/install/bin/ld.lld",
         "LIBC_TARGET_TRIPLE": "riscv64-unknown-elf",
-        "CMAKE_C_FLAGS": "-mabi=lp64d --target=riscv64-unknown-elf",
-        "CMAKE_CXX_FLAGS": "-mabi=lp64d --target=riscv64-unknown-elf",
+        "CMAKE_C_FLAGS": "-mabi=lp64d",
+        "CMAKE_CXX_FLAGS": "-mabi=lp64d",
         "UNUSED": "UNUSED"
       }
     }
