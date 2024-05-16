@@ -41,7 +41,7 @@
     {
       // TODO: support compiler-rt cross compiling
       "name": "llvm_crt_riscv",
-      "description": "note: tested on osx",
+      "description": "note: WIP",
       "inherits": "llvm_libc_riscv",
       "cacheVariables": {
         "LLVM_ENABLE_RUNTIMES": "libcxxabi;libcxx;compiler-rt",
