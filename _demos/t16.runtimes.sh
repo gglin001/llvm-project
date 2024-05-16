@@ -14,6 +14,9 @@ git sparse-checkout set --no-cone \
 # git sparse-checkout add --no-cone \
 #   /libcxx /libcxxabi /libunwind
 
+# git sparse-checkout add --no-cone \
+#   /clang '!/clang/test'
+
 ###############################################################################
 
 cmake --preset iree_llvm_libc_hdrgen -S$PWD/llvm -B$PWD/build_libc_hdrgen
