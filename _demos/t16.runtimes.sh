@@ -15,7 +15,7 @@ git sparse-checkout set --no-cone \
 #   /libcxx /libcxxabi /libunwind
 
 # git sparse-checkout add --no-cone \
-#   /clang '!/clang/test'
+#   /clang '!/clang/test' /lld
 
 ###############################################################################
 
