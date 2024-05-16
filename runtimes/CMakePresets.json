@@ -27,9 +27,7 @@
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/../build_libc/install",
         "CMAKE_EXPORT_COMPILE_COMMANDS": true,
         "LIBC_HDRGEN_EXE": "${sourceDir}/../build_libc_hdrgen/bin/libc-hdrgen",
-        "LLVM_ENABLE_RUNTIMES": "libcxxabi;libcxx",
-        "LIBCXXABI_USE_LLVM_UNWINDER": false,
-        "LIBCXX_INCLUDE_BENCHMARKS": false,
+        "LLVM_ENABLE_RUNTIMES": "libc",
         "LLVM_LIBC_FULL_BUILD": true,
         "LLVM_INCLUDE_TESTS": false,
         // for cross build, need custom CC and CXX
