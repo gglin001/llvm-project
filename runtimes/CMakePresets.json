@@ -2,6 +2,23 @@
   "version": 2,
   "configurePresets": [
     {
+      "name": "llvm_libcxx",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/../build_libcxx",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/../build_libcxx/install",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+        "LLVM_ENABLE_RUNTIMES": "libcxxabi;libcxx",
+        "LIBCXXABI_USE_LLVM_UNWINDER": false,
+        "LIBCXX_INCLUDE_BENCHMARKS": false,
+        "LLVM_INCLUDE_TESTS": false,
+        "CMAKE_C_COMPILER": "/usr/bin/clang",
+        "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
+        "UNUSED": "UNUSED"
+      }
+    },
+    {
       "name": "llvm_libc",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/../build_libc",
@@ -10,7 +27,9 @@
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/../build_libc/install",
         "CMAKE_EXPORT_COMPILE_COMMANDS": true,
         "LIBC_HDRGEN_EXE": "${sourceDir}/../build_libc_hdrgen/bin/libc-hdrgen",
-        "LLVM_ENABLE_RUNTIMES": "libc",
+        "LLVM_ENABLE_RUNTIMES": "libcxxabi;libcxx",
+        "LIBCXXABI_USE_LLVM_UNWINDER": false,
+        "LIBCXX_INCLUDE_BENCHMARKS": false,
         "LLVM_LIBC_FULL_BUILD": true,
         "LLVM_INCLUDE_TESTS": false,
         // for cross build, need custom CC and CXX
@@ -35,16 +54,6 @@
         "LIBC_TARGET_TRIPLE": "riscv64-unknown-elf",
         "CMAKE_C_FLAGS": "-mabi=lp64d",
         "CMAKE_CXX_FLAGS": "-mabi=lp64d",
-        "UNUSED": "UNUSED"
-      }
-    },
-    {
-      // TODO: support compiler-rt cross compiling
-      "name": "llvm_crt_riscv",
-      "description": "note: WIP",
-      "inherits": "llvm_libc_riscv",
-      "cacheVariables": {
-        "LLVM_ENABLE_RUNTIMES": "libcxxabi;libcxx;compiler-rt",
         "UNUSED": "UNUSED"
       }
     }
