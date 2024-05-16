@@ -2,12 +2,12 @@
   "version": 2,
   "configurePresets": [
     {
-      "name": "llvm_runtimes",
+      "name": "llvm_libc",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/../build_runtimes",
+      "binaryDir": "${sourceDir}/../build_libc",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/../build_runtimes/install",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/../build_libc/install",
         "CMAKE_EXPORT_COMPILE_COMMANDS": true,
         "LIBC_HDRGEN_EXE": "${sourceDir}/../build_libc_hdrgen/bin/libc-hdrgen",
         "LLVM_ENABLE_RUNTIMES": "libc",
@@ -20,9 +20,9 @@
       }
     },
     {
-      "name": "llvm_runtimes_riscv",
+      "name": "llvm_libc_riscv",
       "description": "note: tested on osx",
-      "inherits": "llvm_runtimes",
+      "inherits": "llvm_libc",
       "cacheVariables": {
         // "CMAKE_SYSTEM_NAME": "Linux",
         "CMAKE_SYSTEM_NAME": "Generic",
@@ -35,6 +35,16 @@
         "LIBC_TARGET_TRIPLE": "riscv64-unknown-elf",
         "CMAKE_C_FLAGS": "-mabi=lp64d",
         "CMAKE_CXX_FLAGS": "-mabi=lp64d",
+        "UNUSED": "UNUSED"
+      }
+    },
+    {
+      // TODO: support compiler-rt cross compiling
+      "name": "llvm_crt_riscv",
+      "description": "note: tested on osx",
+      "inherits": "llvm_libc_riscv",
+      "cacheVariables": {
+        "LLVM_ENABLE_RUNTIMES": "libcxxabi;libcxx;compiler-rt",
         "UNUSED": "UNUSED"
       }
     }
