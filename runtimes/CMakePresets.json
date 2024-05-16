@@ -16,7 +16,6 @@
         // for cross build, need custom CC and CXX
         "CMAKE_C_COMPILER": "/usr/bin/clang",
         "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
-        // "LIBC_TARGET_TRIPLE": "riscv64-unknown-elf",
         "UNUSED": "UNUSED"
       }
     },
