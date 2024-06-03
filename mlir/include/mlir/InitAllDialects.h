@@ -120,7 +120,7 @@ inline void registerAllDialects(DialectRegistry &registry) {
                   func::FuncDialect,
                   gpu::GPUDialect,
                   index::IndexDialect,
-                  // irdl::IRDLDialect,
+                  irdl::IRDLDialect,
                   linalg::LinalgDialect,
                   LLVM::LLVMDialect,
                   math::MathDialect,
