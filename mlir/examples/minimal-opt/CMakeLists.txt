@@ -37,8 +37,6 @@ list(APPEND LIBS
   MLIROptLib
   MLIRPass
   ${dialect_libs}
-  # MLIRFuncDialect
-  # MLIRArithDialect
 )
 add_mlir_tool(mlir-minimal-opt
   mlir-minimal-opt.cpp
