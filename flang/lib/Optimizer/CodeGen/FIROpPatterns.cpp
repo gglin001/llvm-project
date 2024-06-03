@@ -179,6 +179,14 @@ mlir::Value ConvertFIRToLLVMPattern::getElementSizeFromBox(
   return getValueFromBox(loc, boxTy, box, resultTy, rewriter, kElemLenPosInBox);
 }
 
+/// Read base address from a fir.box. Returned address has type ty.
+mlir::Value ConvertFIRToLLVMPattern::getRankFromBox(
+    mlir::Location loc, TypePair boxTy, mlir::Value box,
+    mlir::ConversionPatternRewriter &rewriter) const {
+  mlir::Type resultTy = getBoxEleTy(boxTy.llvm, {kRankPosInBox});
+  return getValueFromBox(loc, boxTy, box, resultTy, rewriter, kRankPosInBox);
+}
+
 // Get the element type given an LLVM type that is of the form
 // (array|struct|vector)+ and the provided indexes.
 mlir::Type ConvertFIRToLLVMPattern::getBoxEleTy(
@@ -232,6 +240,37 @@ mlir::Value ConvertFIRToLLVMPattern::genBoxAttributeCheck(
                                              maskRes, c0);
 }
 
+mlir::Value ConvertFIRToLLVMPattern::computeBoxSize(
+    mlir::Location loc, TypePair boxTy, mlir::Value box,
+    mlir::ConversionPatternRewriter &rewriter) const {
+  auto firBoxType = mlir::dyn_cast<fir::BaseBoxType>(boxTy.fir);
+  assert(firBoxType && "must be a BaseBoxType");
+  const mlir::DataLayout &dl = lowerTy().getDataLayout();
+  if (!firBoxType.isAssumedRank())
+    return genConstantOffset(loc, rewriter, dl.getTypeSize(boxTy.llvm));
+  fir::BaseBoxType firScalarBoxType = firBoxType.getBoxTypeWithNewShape(0);
+  mlir::Type llvmScalarBoxType =
+      lowerTy().convertBoxTypeAsStruct(firScalarBoxType);
+  llvm::TypeSize scalarBoxSizeCst = dl.getTypeSize(llvmScalarBoxType);
+  mlir::Value scalarBoxSize =
+      genConstantOffset(loc, rewriter, scalarBoxSizeCst);
+  mlir::Value rawRank = getRankFromBox(loc, boxTy, box, rewriter);
+  mlir::Value rank =
+      integerCast(loc, rewriter, scalarBoxSize.getType(), rawRank);
+  mlir::Type llvmDimsType = getBoxEleTy(boxTy.llvm, {kDimsPosInBox, 1});
+  llvm::TypeSize sizePerDimCst = dl.getTypeSize(llvmDimsType);
+  assert((scalarBoxSizeCst + sizePerDimCst ==
+          dl.getTypeSize(lowerTy().convertBoxTypeAsStruct(
+              firBoxType.getBoxTypeWithNewShape(1)))) &&
+         "descriptor layout requires adding padding for dim field");
+  mlir::Value sizePerDim = genConstantOffset(loc, rewriter, sizePerDimCst);
+  mlir::Value dimsSize = rewriter.create<mlir::LLVM::MulOp>(
+      loc, sizePerDim.getType(), sizePerDim, rank);
+  mlir::Value size = rewriter.create<mlir::LLVM::AddOp>(
+      loc, scalarBoxSize.getType(), scalarBoxSize, dimsSize);
+  return size;
+}
+
 // Find the Block in which the alloca should be inserted.
 // The order to recursively find the proper block:
 // 1. An OpenMP Op that will be outlined.
@@ -243,8 +282,6 @@ ConvertFIRToLLVMPattern::getBlockForAllocaInsert(mlir::Operation *op) const {
     return iface.getAllocaBlock();
   if (auto llvmFuncOp = mlir::dyn_cast<mlir::LLVM::LLVMFuncOp>(op))
     return &llvmFuncOp.front();
-  if (auto ompPrivateOp = mlir::dyn_cast<mlir::omp::PrivateClauseOp>(op))
-    return &ompPrivateOp.getAllocRegion().front();
 
   return getBlockForAllocaInsert(op->getParentOp());
 }
@@ -260,9 +297,10 @@ mlir::Value ConvertFIRToLLVMPattern::genAllocaAndAddrCastWithType(
     mlir::ConversionPatternRewriter &rewriter) const {
   auto thisPt = rewriter.saveInsertionPoint();
   mlir::Operation *parentOp = rewriter.getInsertionBlock()->getParentOp();
-  if (mlir::isa<mlir::omp::DeclareReductionOp>(parentOp)) {
-    // DeclareReductionOp has multiple child regions. We want to get the first
-    // block of whichever of those regions we are currently in
+  if (mlir::isa<mlir::omp::DeclareReductionOp>(parentOp) ||
+      mlir::isa<mlir::omp::PrivateClauseOp>(parentOp)) {
+    // DeclareReductionOp & PrivateClauseOp have multiple child regions. We want
+    // to get the first block of whichever of those regions we are currently in
     mlir::Region *parentRegion = rewriter.getInsertionBlock()->getParent();
     rewriter.setInsertionPointToStart(&parentRegion->front());
   } else {

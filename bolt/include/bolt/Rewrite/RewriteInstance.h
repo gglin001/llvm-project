@@ -21,6 +21,7 @@
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/Regex.h"
 #include <map>
 #include <set>
 #include <unordered_map>
@@ -96,6 +97,10 @@ private:
   /// Populate array of binary functions and other objects of interest
   /// from meta data in the file.
   void discoverFileObjects();
+
+  /// Check if the input binary has a space reserved for BOLT and use it for new
+  /// section allocations if found.
+  void discoverBOLTReserved();
 
   /// Check whether we should use DT_FINI or DT_FINI_ARRAY for instrumentation.
   /// DT_FINI is preferred; DT_FINI_ARRAY is only used when no DT_FINI entry was
@@ -591,6 +596,9 @@ private:
   uint64_t NumFailedRelocations{0};
 
   NameResolver NR;
+
+  // Regex object matching split function names.
+  const Regex FunctionFragmentTemplate{"(.*)\\.(cold|warm)(\\.[0-9]+)?"};
 
   friend class RewriteInstanceDiff;
 };

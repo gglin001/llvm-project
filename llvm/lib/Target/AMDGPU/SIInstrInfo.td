@@ -11,10 +11,8 @@ def isWave32 : Predicate<"Subtarget->getWavefrontSize() == 32">,
 def isWave64 : Predicate<"Subtarget->getWavefrontSize() == 64">,
   AssemblerPredicate <(all_of FeatureWavefrontSize64)>;
 
-class GCNPredicateControl : PredicateControl {
-  Predicate SIAssemblerPredicate = isGFX6GFX7;
-  Predicate VIAssemblerPredicate = isGFX8GFX9;
-}
+class AMDGPUMnemonicAlias<string From, string To, string VariantName = "">
+    : MnemonicAlias<From, To, VariantName>, PredicateControl;
 
 // Except for the NONE field, this must be kept in sync with the
 // SIEncodingFamily enum in SIInstrInfo.cpp and the columns of the
@@ -144,6 +142,16 @@ def SIbuffer_load_ushort : SDNode <"AMDGPUISD::BUFFER_LOAD_USHORT", SDTBufferLoa
 def SIbuffer_load_byte : SDNode <"AMDGPUISD::BUFFER_LOAD_BYTE", SDTBufferLoad,
                             [SDNPMemOperand, SDNPHasChain, SDNPMayLoad]>;
 def SIbuffer_load_short: SDNode <"AMDGPUISD::BUFFER_LOAD_SHORT", SDTBufferLoad,
+                            [SDNPMemOperand, SDNPHasChain, SDNPMayLoad]>;
+def SIbuffer_load_tfe : SDNode <"AMDGPUISD::BUFFER_LOAD_TFE", SDTBufferLoad,
+                            [SDNPMemOperand, SDNPHasChain, SDNPMayLoad]>;
+def SIbuffer_load_ubyte_tfe : SDNode <"AMDGPUISD::BUFFER_LOAD_UBYTE_TFE", SDTBufferLoad,
+                            [SDNPMemOperand, SDNPHasChain, SDNPMayLoad]>;
+def SIbuffer_load_ushort_tfe : SDNode <"AMDGPUISD::BUFFER_LOAD_USHORT_TFE", SDTBufferLoad,
+                            [SDNPMemOperand, SDNPHasChain, SDNPMayLoad]>;
+def SIbuffer_load_byte_tfe : SDNode <"AMDGPUISD::BUFFER_LOAD_BYTE_TFE", SDTBufferLoad,
+                            [SDNPMemOperand, SDNPHasChain, SDNPMayLoad]>;
+def SIbuffer_load_short_tfe: SDNode <"AMDGPUISD::BUFFER_LOAD_SHORT_TFE", SDTBufferLoad,
                             [SDNPMemOperand, SDNPHasChain, SDNPMayLoad]>;
 def SIbuffer_load_format : SDNode <"AMDGPUISD::BUFFER_LOAD_FORMAT", SDTBufferLoad,
                             [SDNPMemOperand, SDNPHasChain, SDNPMayLoad]>;
@@ -1002,6 +1010,9 @@ def SDWAVopcDst : BoolRC {
 class NamedIntOperand<ValueType Type, string Prefix, bit Optional = 1,
                       string name = NAME>
     : CustomOperand<Type, Optional, name> {
+  let PredicateMethod =
+    "getPredicate([](const AMDGPUOperand &Op) -> bool { "#
+    "return Op.isImmTy(AMDGPUOperand::"#ImmTy#"); })";
   string Validator = "[](int64_t V) { return true; }";
   string ConvertMethod = "[](int64_t &V) { return "#Validator#"(V); }";
   let ParserMethod =
@@ -2303,8 +2314,9 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableClamp = 0> {
   field bit IsWMMA = 0;
   field bit IsSWMMAC = 0;
 
-  field bit IsFP8 = 0;
+  field bit IsFP8SrcByteSel = 0;
   field bit IsFP8DstByteSel = 0;
+  field bit IsFP8ByteSel = !or(IsFP8SrcByteSel, IsFP8DstByteSel);
 
   field bit HasDst = !ne(DstVT.Value, untyped.Value);
   field bit HasDst32 = HasDst;
@@ -2424,7 +2436,7 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableClamp = 0> {
   field string AsmDPP8 = getAsmDPP8<HasDst, NumSrcArgs, 0 /*HasModifiers*/, DstVT>.ret;
   field string AsmVOP3Base = getAsmVOP3Base<NumSrcArgs, HasDst, HasClamp,
    HasOpSel, HasOMod, IsVOP3P, HasModifiers, HasModifiers, HasModifiers,
-   HasModifiers, DstVT, IsFP8DstByteSel>.ret;
+   HasModifiers, DstVT, IsFP8ByteSel>.ret;
   field string Asm64 = AsmVOP3Base;
   field string AsmVOP3P = getAsmVOP3P<NumSrcArgs, HasModifiers, HasClamp, HasOpSel>.ret;
   field string AsmVOP3OpSel = getAsmVOP3OpSel<NumSrcArgs,
@@ -2653,7 +2665,7 @@ class VINTRP_Real_vi <bits <2> op, string opName, dag outs, dag ins,
   VINTRPCommon <outs, ins, asm, []>,
   VINTRPe_vi <op>,
   SIMCInstr<opName, SIEncodingFamily.VI> {
-  let AssemblerPredicate = VIAssemblerPredicate;
+  let AssemblerPredicate = isGFX8GFX9;
   let DecoderNamespace = "GFX8";
 }
 
