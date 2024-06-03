@@ -6,6 +6,7 @@ list(FILTER dialect_libs INCLUDE REGEX ".*Dialect")
 list(FILTER dialect_libs EXCLUDE REGEX ".*OpenMP")
 list(FILTER dialect_libs EXCLUDE REGEX "MLIRTransformDialectUtils")
 list(FILTER dialect_libs EXCLUDE REGEX "MLIRTransformDialectTransforms")
+list(FILTER dialect_libs EXCLUDE REGEX "MLIRTransformDialectIRDLExtension")
 message("dialect_libs filtered: ${dialect_libs}")
 
 set(LLVM_LINK_COMPONENTS

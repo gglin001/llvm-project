@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/InitAllDialects.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OwningOpRef.h"
@@ -18,7 +19,6 @@
 #include <cstdlib>
 #include <string>
 #include <utility>
-#include "mlir/InitAllDialects.h"
 
 using namespace mlir;
 
