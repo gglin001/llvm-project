@@ -1,3 +1,13 @@
+# set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_DEBUG_MODE 1)
+get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
+
+message("dialect_libs raw: ${dialect_libs}")
+list(FILTER dialect_libs INCLUDE REGEX ".*Dialect")
+list(FILTER dialect_libs EXCLUDE REGEX ".*OpenMP")
+list(FILTER dialect_libs EXCLUDE REGEX "MLIRTransformDialectUtils")
+list(FILTER dialect_libs EXCLUDE REGEX "MLIRTransformDialectTransforms")
+message("dialect_libs filtered: ${dialect_libs}")
+
 set(LLVM_LINK_COMPONENTS
   Support
   )
@@ -7,6 +17,7 @@ set(LIBS
   MLIRParser
   MLIRSupport
   MLIRIR
+  ${dialect_libs}
 )
 
 add_mlir_tool(mlir-cat
@@ -23,6 +34,9 @@ mlir_check_all_link_libraries(mlir-cat)
 list(APPEND LIBS
   MLIROptLib
   MLIRPass
+  ${dialect_libs}
+  # MLIRFuncDialect
+  # MLIRArithDialect
 )
 add_mlir_tool(mlir-minimal-opt
   mlir-minimal-opt.cpp

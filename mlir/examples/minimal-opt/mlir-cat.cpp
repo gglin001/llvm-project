@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <string>
 #include <utility>
+#include "mlir/InitAllDialects.h"
 
 using namespace mlir;
 
@@ -49,6 +50,8 @@ int main(int argc, char **argv) {
   }
 
   DialectRegistry registry;
+  mlir::registerAllDialects(registry);
+
   MLIRContext context(registry, MLIRContext::Threading::DISABLED);
   context.allowUnregisteredDialects(true);
   OwningOpRef<Operation *> op = parseSourceFile(sourceMgr, &context);

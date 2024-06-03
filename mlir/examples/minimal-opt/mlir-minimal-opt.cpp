@@ -6,13 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/InitAllDialects.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
+// #include "mlir/Dialect/Func/IR/FuncOps.h"
+// #include "mlir/Dialect/Arith/IR/Arith.h"
 
 /// This test includes the minimal amount of components for mlir-opt, that is
 /// the CoreIR, the printer/parser, the bytecode reader/writer, the
 /// passmanagement infrastructure and all the instrumentation.
 int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
+
+  mlir::registerAllDialects(registry);
+  // registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect>();
+
   return mlir::asMainReturnCode(mlir::MlirOptMain(
       argc, argv, "Minimal Standalone optimizer driver\n", registry));
 }

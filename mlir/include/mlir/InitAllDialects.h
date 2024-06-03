@@ -59,14 +59,14 @@
 #include "mlir/Dialect/Mesh/IR/MeshDialect.h"
 #include "mlir/Dialect/NVGPU/IR/NVGPUDialect.h"
 #include "mlir/Dialect/OpenACC/OpenACC.h"
-#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
+// #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/PDL/IR/PDL.h"
 #include "mlir/Dialect/PDLInterp/IR/PDLInterp.h"
 #include "mlir/Dialect/Polynomial/IR/PolynomialDialect.h"
 #include "mlir/Dialect/Quant/QuantOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/IR/ValueBoundsOpInterfaceImpl.h"
-#include "mlir/Dialect/SCF/TransformOps/SCFTransformOps.h"
+// #include "mlir/Dialect/SCF/TransformOps/SCFTransformOps.h"
 #include "mlir/Dialect/SCF/Transforms/BufferDeallocationOpInterfaceImpl.h"
 #include "mlir/Dialect/SCF/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
@@ -78,7 +78,7 @@
 #include "mlir/Dialect/Tensor/IR/TensorInferTypeOpInterfaceImpl.h"
 #include "mlir/Dialect/Tensor/IR/TensorTilingInterfaceImpl.h"
 #include "mlir/Dialect/Tensor/IR/ValueBoundsOpInterfaceImpl.h"
-#include "mlir/Dialect/Tensor/TransformOps/TensorTransformOps.h"
+// #include "mlir/Dialect/Tensor/TransformOps/TensorTransformOps.h"
 #include "mlir/Dialect/Tensor/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Tensor/Transforms/SubsetInsertionOpInterfaceImpl.h"
 #include "mlir/Dialect/Tosa/IR/ShardingInterfaceImpl.h"
@@ -120,7 +120,7 @@ inline void registerAllDialects(DialectRegistry &registry) {
                   func::FuncDialect,
                   gpu::GPUDialect,
                   index::IndexDialect,
-                  irdl::IRDLDialect,
+                  // irdl::IRDLDialect,
                   linalg::LinalgDialect,
                   LLVM::LLVMDialect,
                   math::MathDialect,
@@ -130,7 +130,7 @@ inline void registerAllDialects(DialectRegistry &registry) {
                   mpi::MPIDialect,
                   nvgpu::NVGPUDialect,
                   NVVM::NVVMDialect,
-                  omp::OpenMPDialect,
+                  // omp::OpenMPDialect,
                   pdl::PDLDialect,
                   pdl_interp::PDLInterpDialect,
                   polynomial::PolynomialDialect,
@@ -149,6 +149,7 @@ inline void registerAllDialects(DialectRegistry &registry) {
                   xegpu::XeGPUDialect>();
   // clang-format on
 
+  /*
   // Register all external models.
   affine::registerValueBoundsOpInterfaceExternalModels(registry);
   arith::registerBufferDeallocationOpInterfaceExternalModels(registry);
@@ -187,6 +188,7 @@ inline void registerAllDialects(DialectRegistry &registry) {
   NVVM::registerNVVMTargetInterfaceExternalModels(registry);
   ROCDL::registerROCDLTargetInterfaceExternalModels(registry);
   spirv::registerSPIRVTargetInterfaceExternalModels(registry);
+  */
 }
 
 /// Append all the MLIR dialects to the registry contained in the given context.
