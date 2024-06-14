@@ -11,6 +11,9 @@ git sparse-checkout add --no-cone \
   '!/clang/docs' '!/clang/www' '!/llvm/docs' \
   '!/.ci' '!/.github'
 
+# git sparse-checkout add --no-cone \
+#   '!/clang/test'
+
 # git sparse-checkout set --no-cone /cmake /llvm /mlir
 git sparse-checkout list
 git checkout
