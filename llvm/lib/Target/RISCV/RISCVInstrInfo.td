@@ -2063,6 +2063,7 @@ include "RISCVInstrInfoXTHead.td"
 include "RISCVInstrInfoXSf.td"
 include "RISCVInstrInfoSFB.td"
 include "RISCVInstrInfoXCV.td"
+include "RISCVInstrInfoXx.td"
 
 //===----------------------------------------------------------------------===//
 // Global ISel
