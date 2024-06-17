@@ -34,6 +34,13 @@ class XxZ_rri<bits<7> funct7, bits<3> funct3, string opcodestr>
 let Predicates = [IsRV64], DecoderNamespace = "Xx" in {
 def LAUNCH     : XxZ_rri<0b0000010, 0b000, "launch">;
 def ABD     : XxZ_r<0b0000000, 0b000, "abd">;
+
+def EXIT : XxZ_r<0b1111111, 0b111, "exit"> {
+  let rd = 1;
+  let rs1 = 1;
+  let rs2 = 1;
+}
+
 } // Predicates = [IsRV64]
 
 //===----------------------------------------------------------------------===//
