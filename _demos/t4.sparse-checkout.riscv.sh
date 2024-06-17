@@ -6,7 +6,7 @@ pushd llvm-project
 git sparse-checkout set --no-cone \
   /cmake /llvm /mlir \
   '!/llvm/test' '!/llvm/unittests' '!/llvm/docs' \
-  '!/mlir/test' '!/mlir/docs' \
+  '!/mlir/test' '!/mlir/unittests' '!/mlir/docs' \
   /_demos /.vscode '/*.*'
 
 # llvm/lib/Target
