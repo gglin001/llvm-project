@@ -45,9 +45,9 @@ class XxZ_sp<bits<7> funct7, bits<3> funct3, string opcodestr>
 
 let Predicates = [IsRV64], DecoderNamespace = "Xx" in {
 def EXIT : XxZ_sp<0b1111111, 0b111, "exit"> {
-  let rd = 1;
-  let rs1 = 1;
-  let rs2 = 1;
+  let rd = 0b11111;
+  let rs1 = 0b11111;
+  let rs2 = 0b11111;
 }
 } // Predicates = [IsRV64]
 
