@@ -1190,6 +1190,14 @@ def HasVendorXCVbi
       AssemblerPredicate<(all_of FeatureVendorXCVbi),
                          "'XCVbi' (CORE-V Immediate Branching)">;
 
+def FeatureVendorXxyz
+    : RISCVExtension<"xxyz", 1, 0,
+                     "'Xxyz' (xyz)">;
+def HasVendorXxyz
+    : Predicate<"Subtarget->hasVendorXxyz()">,
+      AssemblerPredicate<(all_of FeatureVendorXxyz),
+                         "'Xxyz' (xyz)">;
+
 //===----------------------------------------------------------------------===//
 // LLVM specific features and extensions
 //===----------------------------------------------------------------------===//
