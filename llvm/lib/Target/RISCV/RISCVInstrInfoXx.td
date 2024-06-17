@@ -10,8 +10,7 @@
 // RISC-V specific DAG Nodes.
 //===----------------------------------------------------------------------===//
 
-// def riscv_launch : SDNode<"RISCVISD::REMUW", SDT_RISCVIntBinOpW>;
-// def riscv_exit : SDNode<"RISCVISD::REMUW", SDT_RISCVIntBinOpW>;
+// TODO
 
 //===----------------------------------------------------------------------===//
 // Instructions
@@ -55,6 +54,4 @@ def EXIT : XxZ_sp<0b1111111, 0b111, "exit"> {
 // Pseudo-instructions and codegen patterns
 //===----------------------------------------------------------------------===//
 
-// let Predicates = [IsRV64] in {
-// def : PatGprGpr<riscv_mulhsu, MULHSU>;
-// } // Predicates = [IsRV64]
+// TODO
