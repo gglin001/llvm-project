@@ -1,3 +1,5 @@
+###############################################################################
+
 # git sparse-checkout set --no-cone \
 #   '/*' \
 #   '!/clang/docs' '!/clang/www' '!/llvm/docs' \
@@ -16,6 +18,11 @@ git sparse-checkout set --no-cone \
 
 # git sparse-checkout add --no-cone \
 #   /clang '!/clang/test' /lld
+
+###############################################################################
+
+ln -s _demos/t16.cmake_presets/llvm_CMakePresets.json llvm/CMakePresets.json
+ln -s _demos/t16.cmake_presets/runtimes_CMakePresets.json runtimes/CMakePresets.json
 
 ###############################################################################
 
