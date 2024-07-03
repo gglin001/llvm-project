@@ -32,6 +32,17 @@
         "MLIR_INCLUDE_TESTS": true,
         "MLIR_ENABLE_BINDINGS_PYTHON": true
       }
+    },
+    {
+      "name": "iree_llvm_riscv",
+      "inherits": "iree_llvm",
+      "cacheVariables": {
+        "LLVM_TARGETS_TO_BUILD": "RISCV",
+        "LLVM_ENABLE_PROJECTS": "clang;mlir;lld",
+        "MLIR_INCLUDE_TESTS": false,
+        "MLIR_ENABLE_BINDINGS_PYTHON": false,
+        "UNUSED": "PLACEHOLDER"
+      }
     }
   ]
 }
