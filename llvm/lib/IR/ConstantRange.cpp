@@ -58,8 +58,8 @@ ConstantRange::ConstantRange(APInt L, APInt U)
 
 ConstantRange ConstantRange::fromKnownBits(const KnownBits &Known,
                                            bool IsSigned) {
-  assert(!Known.hasConflict() && "Expected valid KnownBits");
-
+  if (Known.hasConflict())
+    return getEmpty(Known.getBitWidth());
   if (Known.isUnknown())
     return getFull(Known.getBitWidth());
 
@@ -364,6 +364,23 @@ ConstantRange ConstantRange::makeExactNoWrapRegion(Instruction::BinaryOps BinOp,
   return makeGuaranteedNoWrapRegion(BinOp, ConstantRange(Other), NoWrapKind);
 }
 
+ConstantRange ConstantRange::makeMaskNotEqualRange(const APInt &Mask,
+                                                   const APInt &C) {
+  unsigned BitWidth = Mask.getBitWidth();
+
+  if ((Mask & C) != C)
+    return getFull(BitWidth);
+
+  if (Mask.isZero())
+    return getEmpty(BitWidth);
+
+  // If (Val & Mask) != C, constrained to the non-equality being
+  // satisfiable, then the value must be larger than the lowest set bit of
+  // Mask, offset by constant C.
+  return ConstantRange::getNonEmpty(
+      APInt::getOneBitSet(BitWidth, Mask.countr_zero()) + C, C);
+}
+
 bool ConstantRange::isFullSet() const {
   return Lower == Upper && Lower.isMaxValue();
 }
@@ -421,6 +438,16 @@ bool ConstantRange::isAllNegative() const {
 bool ConstantRange::isAllNonNegative() const {
   // Empty and full set are automatically treated correctly.
   return !isSignWrappedSet() && Lower.isNonNegative();
+}
+
+bool ConstantRange::isAllPositive() const {
+  // Empty set is all positive, full set is not.
+  if (isEmptySet())
+    return true;
+  if (isFullSet())
+    return false;
+
+  return !isSignWrappedSet() && Lower.isStrictlyPositive();
 }
 
 APInt ConstantRange::getUnsignedMax() const {
