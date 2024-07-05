@@ -1,7 +1,7 @@
-pushd llvm
-ln -s ../CMakePresets.json .
-ln -s ../CMakeUserPresets.json .
-popd
+# pushd llvm
+# ln -s ../CMakePresets.json .
+# ln -s ../CMakeUserPresets.json .
+# popd
 
 # building with cmake-tools in vscode
 
