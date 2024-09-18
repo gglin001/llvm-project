@@ -1662,20 +1662,16 @@ static VectorType dropNonScalableUnitDimFromType(VectorType inVecTy) {
 /// required to be rank > 1.
 ///
 /// Ex:
-/// ```
 ///  %mul = arith.mulf %B_row, %A_row : vector<1x[4]xf32>
 ///  %cast = vector.shape_cast %mul : vector<1x[4]xf32> to vector<[4]xf32>
-/// ```
 ///
 /// gets converted to:
 ///
-/// ```
 ///  %B_row_sc = vector.shape_cast %B_row : vector<1x[4]xf32> to vector<[4]xf32>
 ///  %A_row_sc = vector.shape_cast %A_row : vector<1x[4]xf32> to vector<[4]xf32>
 ///  %mul = arith.mulf %B_row_sc, %A_row_sc : vector<[4]xf32>
 ///  %cast_new = vector.shape_cast %mul : vector<[4]xf32> to vector<1x[4]xf32>
 ///  %cast = vector.shape_cast %cast_new : vector<1x[4]xf32> to vector<[4]xf32>
-/// ```
 ///
 /// Patterns for folding shape_casts should instantly eliminate `%cast_new` and
 /// `%cast`.
@@ -1699,40 +1695,27 @@ struct DropUnitDimFromElementwiseOps final
       return failure();
     if (sourceVectorType.getRank() < 2)
       return failure();
-    if (sourceVectorType.getRank() < 2)
-      return failure();
-
-    bool hasTrailingDimUnitFixed =
-        ((sourceVectorType.getShape().back() == 1) &&
-         (!sourceVectorType.getScalableDims().back()));
-    bool hasLeadingDimUnitFixed =
-        ((sourceVectorType.getShape().front() == 1) &&
-         (!sourceVectorType.getScalableDims().front()));
-    if (!hasLeadingDimUnitFixed && !hasTrailingDimUnitFixed)
-      return failure();
-
-    // Drop leading/trailing unit dim by applying vector.shape_cast to all
-    // operands
-    int64_t dim = hasLeadingDimUnitFixed ? 0 : sourceVectorType.getRank() - 1;
 
     SmallVector<Value> newOperands;
     auto loc = op->getLoc();
     for (auto operand : op->getOperands()) {
       auto opVectorType = cast<VectorType>(operand.getType());
-      VectorType newVType = VectorType::Builder(opVectorType).dropDim(dim);
+      auto newVType = dropNonScalableUnitDimFromType(opVectorType);
+      if (newVType == opVectorType)
+        return rewriter.notifyMatchFailure(op, "No unit dimension to remove.");
+
       auto opSC = rewriter.create<vector::ShapeCastOp>(loc, newVType, operand);
       newOperands.push_back(opSC);
     }
 
     VectorType newResultVectorType =
-        VectorType::Builder(resultVectorType).dropDim(dim);
-    // Create an updated elementwise Op without leading/trailing unit dim
+        dropNonScalableUnitDimFromType(resultVectorType);
+    // Create an updated elementwise Op without unit dim.
     Operation *elementwiseOp =
         rewriter.create(loc, op->getName().getIdentifier(), newOperands,
                         newResultVectorType, op->getAttrs());
 
-    // Restore the leading/trailing unit dim by applying vector.shape_cast
-    // to the result
+    // Restore the unit dim by applying vector.shape_cast to the result.
     rewriter.replaceOpWithNewOp<ShapeCastOp>(op, resultVectorType,
                                              elementwiseOp->getResult(0));
 
