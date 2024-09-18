@@ -2,8 +2,7 @@
   "version": 2,
   "configurePresets": [
     {
-      "name": "iree_llvm",
-      "description": "for iree_llvm docker env && macos host env",
+      "name": "osx",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/../build",
       "cacheVariables": {
