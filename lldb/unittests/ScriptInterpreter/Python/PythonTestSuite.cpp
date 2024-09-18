@@ -200,6 +200,12 @@ bool lldb_private::python::SWIGBridge::LLDBSwigPythonCallParsedCommandObject(
   return false;
 }
 
+std::optional<std::string>
+LLDBSwigPythonGetRepeatCommandForScriptedCommand(PyObject *implementor,
+                                                 std::string &command) {
+  return std::nullopt;
+}
+
 bool lldb_private::python::SWIGBridge::LLDBSwigPythonCallModuleInit(
     const char *python_module_name, const char *session_dictionary_name,
     lldb::DebuggerSP debugger) {
@@ -277,7 +283,7 @@ bool lldb_private::python::SWIGBridge::LLDBSwigPythonStopHookCallHandleStop(
 }
 
 python::PythonObject
-lldb_private::python::SWIGBridge::ToSWIGWrapper(const Status &status) {
+lldb_private::python::SWIGBridge::ToSWIGWrapper(Status status) {
   return python::PythonObject();
 }
 

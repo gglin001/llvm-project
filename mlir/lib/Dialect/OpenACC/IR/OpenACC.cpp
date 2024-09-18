@@ -24,6 +24,7 @@ using namespace acc;
 
 #include "mlir/Dialect/OpenACC/OpenACCOpsDialect.cpp.inc"
 #include "mlir/Dialect/OpenACC/OpenACCOpsEnums.cpp.inc"
+#include "mlir/Dialect/OpenACC/OpenACCOpsInterfaces.cpp.inc"
 #include "mlir/Dialect/OpenACC/OpenACCTypeInterfaces.cpp.inc"
 #include "mlir/Dialect/OpenACCMPCommon/Interfaces/OpenACCMPOpsInterfaces.cpp.inc"
 
@@ -905,6 +906,31 @@ mlir::Value ParallelOp::getWaitDevnum(mlir::acc::DeviceType deviceType) {
                             deviceType);
 }
 
+void ParallelOp::build(mlir::OpBuilder &odsBuilder,
+                       mlir::OperationState &odsState,
+                       mlir::ValueRange numGangs, mlir::ValueRange numWorkers,
+                       mlir::ValueRange vectorLength,
+                       mlir::ValueRange asyncOperands,
+                       mlir::ValueRange waitOperands, mlir::Value ifCond,
+                       mlir::Value selfCond, mlir::ValueRange reductionOperands,
+                       mlir::ValueRange gangPrivateOperands,
+                       mlir::ValueRange gangFirstPrivateOperands,
+                       mlir::ValueRange dataClauseOperands) {
+
+  ParallelOp::build(
+      odsBuilder, odsState, asyncOperands, /*asyncOperandsDeviceType=*/nullptr,
+      /*asyncOnly=*/nullptr, waitOperands, /*waitOperandsSegments=*/nullptr,
+      /*waitOperandsDeviceType=*/nullptr, /*hasWaitDevnum=*/nullptr,
+      /*waitOnly=*/nullptr, numGangs, /*numGangsSegments=*/nullptr,
+      /*numGangsDeviceType=*/nullptr, numWorkers,
+      /*numWorkersDeviceType=*/nullptr, vectorLength,
+      /*vectorLengthDeviceType=*/nullptr, ifCond, selfCond,
+      /*selfAttr=*/nullptr, reductionOperands, /*reductionRecipes=*/nullptr,
+      gangPrivateOperands, /*privatizations=*/nullptr, gangFirstPrivateOperands,
+      /*firstprivatizations=*/nullptr, dataClauseOperands,
+      /*defaultAttr=*/nullptr, /*combined=*/nullptr);
+}
+
 static ParseResult parseNumGangs(
     mlir::OpAsmParser &parser,
     llvm::SmallVectorImpl<mlir::OpAsmParser::UnresolvedOperand> &operands,
@@ -1764,9 +1790,8 @@ bool hasDuplicateDeviceTypes(
     return false;
   for (auto attr : *segments) {
     auto deviceTypeAttr = mlir::dyn_cast<mlir::acc::DeviceTypeAttr>(attr);
-    if (deviceTypes.contains(deviceTypeAttr.getValue()))
+    if (!deviceTypes.insert(deviceTypeAttr.getValue()).second)
       return true;
-    deviceTypes.insert(deviceTypeAttr.getValue());
   }
   return false;
 }
@@ -1781,9 +1806,8 @@ LogicalResult checkDeviceTypes(mlir::ArrayAttr deviceTypes) {
         mlir::dyn_cast_or_null<mlir::acc::DeviceTypeAttr>(attr);
     if (!deviceTypeAttr)
       return failure();
-    if (crtDeviceTypes.contains(deviceTypeAttr.getValue()))
+    if (!crtDeviceTypes.insert(deviceTypeAttr.getValue()).second)
       return failure();
-    crtDeviceTypes.insert(deviceTypeAttr.getValue());
   }
   return success();
 }
@@ -2085,8 +2109,8 @@ void printLoopControl(OpAsmPrinter &p, Operation *op, Region &region,
     llvm::interleaveComma(regionArgs, p,
                           [&p](Value v) { p << v << " : " << v.getType(); });
     p << ") = (" << lowerbound << " : " << lowerboundType << ") to ("
-      << upperbound << " : " << upperboundType << ") "
-      << " step (" << steps << " : " << stepType << ") ";
+      << upperbound << " : " << upperboundType << ") " << " step (" << steps
+      << " : " << stepType << ") ";
   }
   p.printRegion(region, /*printEntryBlockArgs=*/false);
 }

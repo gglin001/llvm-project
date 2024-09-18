@@ -124,6 +124,21 @@ bool LLParser::parseTypeAtBeginning(Type *&Ty, unsigned &Read,
   return false;
 }
 
+bool LLParser::parseDIExpressionBodyAtBeginning(MDNode *&Result, unsigned &Read,
+                                                const SlotMapping *Slots) {
+  restoreParsingState(Slots);
+  Lex.Lex();
+
+  Read = 0;
+  SMLoc Start = Lex.getLoc();
+  Result = nullptr;
+  bool Status = parseDIExpressionBody(Result, /*IsDistinct=*/false);
+  SMLoc End = Lex.getLoc();
+  Read = End.getPointer() - Start.getPointer();
+
+  return Status;
+}
+
 void LLParser::restoreParsingState(const SlotMapping *Slots) {
   if (!Slots)
     return;
@@ -3094,8 +3109,8 @@ bool LLParser::parseRangeAttr(AttrBuilder &B) {
   if (ParseAPSInt(BitWidth, Lower) ||
       parseToken(lltok::comma, "expected ','") || ParseAPSInt(BitWidth, Upper))
     return true;
-  if (Lower == Upper)
-    return tokError("the range should not represent the full or empty set!");
+  if (Lower == Upper && !Lower.isZero())
+    return tokError("the range represent the empty set but limits aren't 0!");
 
   if (parseToken(lltok::rparen, "expected ')'"))
     return true;
@@ -3515,7 +3530,12 @@ bool LLParser::parseTargetExtType(Type *&Result) {
   if (parseToken(lltok::rparen, "expected ')' in target extension type"))
     return true;
 
-  Result = TargetExtType::get(Context, TypeName, TypeParams, IntParams);
+  auto TTy =
+      TargetExtType::getOrError(Context, TypeName, TypeParams, IntParams);
+  if (auto E = TTy.takeError())
+    return tokError(toString(std::move(E)));
+
+  Result = *TTy;
   return false;
 }
 
@@ -5823,12 +5843,9 @@ bool LLParser::parseDILabel(MDNode *&Result, bool IsDistinct) {
   return false;
 }
 
-/// parseDIExpression:
-///   ::= !DIExpression(0, 7, -1)
-bool LLParser::parseDIExpression(MDNode *&Result, bool IsDistinct) {
-  assert(Lex.getKind() == lltok::MetadataVar && "Expected metadata type name");
-  Lex.Lex();
-
+/// parseDIExpressionBody:
+///   ::= (0, 7, -1)
+bool LLParser::parseDIExpressionBody(MDNode *&Result, bool IsDistinct) {
   if (parseToken(lltok::lparen, "expected '(' here"))
     return true;
 
@@ -5869,6 +5886,16 @@ bool LLParser::parseDIExpression(MDNode *&Result, bool IsDistinct) {
 
   Result = GET_OR_DISTINCT(DIExpression, (Context, Elements));
   return false;
+}
+
+/// parseDIExpression:
+///   ::= !DIExpression(0, 7, -1)
+bool LLParser::parseDIExpression(MDNode *&Result, bool IsDistinct) {
+  assert(Lex.getKind() == lltok::MetadataVar && "Expected metadata type name");
+  assert(Lex.getStrVal() == "DIExpression" && "Expected '!DIExpression'");
+  Lex.Lex();
+
+  return parseDIExpressionBody(Result, IsDistinct);
 }
 
 /// ParseDIArgList:
@@ -7238,13 +7265,13 @@ bool LLParser::parseIndirectBr(Instruction *&Inst, PerFunctionState &PFS) {
 // If RetType is a non-function pointer type, then this is the short syntax
 // for the call, which means that RetType is just the return type.  Infer the
 // rest of the function argument types from the arguments that are present.
-bool LLParser::resolveFunctionType(Type *RetType,
-                                   const SmallVector<ParamInfo, 16> &ArgList,
+bool LLParser::resolveFunctionType(Type *RetType, ArrayRef<ParamInfo> ArgList,
                                    FunctionType *&FuncTy) {
   FuncTy = dyn_cast<FunctionType>(RetType);
   if (!FuncTy) {
     // Pull out the types of all of the arguments...
-    std::vector<Type*> ParamTypes;
+    SmallVector<Type *, 8> ParamTypes;
+    ParamTypes.reserve(ArgList.size());
     for (const ParamInfo &Arg : ArgList)
       ParamTypes.push_back(Arg.V->getType());
 
@@ -8330,6 +8357,12 @@ int LLParser::parseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
   case lltok::kw_udec_wrap:
     Operation = AtomicRMWInst::UDecWrap;
     break;
+  case lltok::kw_usub_cond:
+    Operation = AtomicRMWInst::USubCond;
+    break;
+  case lltok::kw_usub_sat:
+    Operation = AtomicRMWInst::USubSat;
+    break;
   case lltok::kw_fadd:
     Operation = AtomicRMWInst::FAdd;
     IsFP = true;
@@ -9363,10 +9396,10 @@ bool LLParser::parseFunctionSummary(std::string Name, GlobalValue::GUID GUID,
       /*Live=*/false, /*IsLocal=*/false, /*CanAutoHide=*/false,
       GlobalValueSummary::Definition);
   unsigned InstCount;
-  std::vector<FunctionSummary::EdgeTy> Calls;
+  SmallVector<FunctionSummary::EdgeTy, 0> Calls;
   FunctionSummary::TypeIdInfo TypeIdInfo;
   std::vector<FunctionSummary::ParamAccess> ParamAccesses;
-  std::vector<ValueInfo> Refs;
+  SmallVector<ValueInfo, 0> Refs;
   std::vector<CallsiteInfo> Callsites;
   std::vector<AllocInfo> Allocs;
   // Default is all-zeros (conservative values).
@@ -9420,8 +9453,8 @@ bool LLParser::parseFunctionSummary(std::string Name, GlobalValue::GUID GUID,
     return true;
 
   auto FS = std::make_unique<FunctionSummary>(
-      GVFlags, InstCount, FFlags, /*EntryCount=*/0, std::move(Refs),
-      std::move(Calls), std::move(TypeIdInfo.TypeTests),
+      GVFlags, InstCount, FFlags, std::move(Refs), std::move(Calls),
+      std::move(TypeIdInfo.TypeTests),
       std::move(TypeIdInfo.TypeTestAssumeVCalls),
       std::move(TypeIdInfo.TypeCheckedLoadVCalls),
       std::move(TypeIdInfo.TypeTestAssumeConstVCalls),
@@ -9454,7 +9487,7 @@ bool LLParser::parseVariableSummary(std::string Name, GlobalValue::GUID GUID,
                                         /* WriteOnly */ false,
                                         /* Constant */ false,
                                         GlobalObject::VCallVisibilityPublic);
-  std::vector<ValueInfo> Refs;
+  SmallVector<ValueInfo, 0> Refs;
   VTableFuncList VTableFuncs;
   if (parseToken(lltok::colon, "expected ':' here") ||
       parseToken(lltok::lparen, "expected '(' here") ||
@@ -9652,7 +9685,8 @@ bool LLParser::parseOptionalFFlags(FunctionSummary::FFlags &FFlags) {
 /// Call ::= '(' 'callee' ':' GVReference
 ///            [( ',' 'hotness' ':' Hotness | ',' 'relbf' ':' UInt32 )]?
 ///            [ ',' 'tail' ]? ')'
-bool LLParser::parseOptionalCalls(std::vector<FunctionSummary::EdgeTy> &Calls) {
+bool LLParser::parseOptionalCalls(
+    SmallVectorImpl<FunctionSummary::EdgeTy> &Calls) {
   assert(Lex.getKind() == lltok::kw_calls);
   Lex.Lex();
 
@@ -9960,7 +9994,7 @@ bool LLParser::parseOptionalParamAccesses(
 
 /// OptionalRefs
 ///   := 'refs' ':' '(' GVReference [',' GVReference]* ')'
-bool LLParser::parseOptionalRefs(std::vector<ValueInfo> &Refs) {
+bool LLParser::parseOptionalRefs(SmallVectorImpl<ValueInfo> &Refs) {
   assert(Lex.getKind() == lltok::kw_refs);
   Lex.Lex();
 

@@ -348,6 +348,26 @@ G_ICMP
 Perform integer comparison producing non-zero (true) or zero (false). It's
 target specific whether a true value is 1, ~0U, or some other non-zero value.
 
+G_SCMP
+^^^^^^
+
+Perform signed 3-way integer comparison producing -1 (smaller), 0 (equal), or 1 (larger).
+
+.. code-block:: none
+
+  %5:_(s32) = G_SCMP %6, %2
+
+
+G_UCMP
+^^^^^^
+
+Perform unsigned 3-way integer comparison producing -1 (smaller), 0 (equal), or 1 (larger).
+
+.. code-block:: none
+
+  %7:_(s32) = G_UCMP %2, %6
+
+
 G_SELECT
 ^^^^^^^^
 
@@ -483,6 +503,11 @@ G_FPTOSI, G_FPTOUI, G_SITOFP, G_UITOFP
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Convert between integer and floating point.
+
+G_FPTOSI_SAT, G_FPTOUI_SAT
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Saturating convert between integer and floating point.
 
 G_FABS
 ^^^^^^
@@ -726,6 +751,13 @@ The type of the operand must be equal to or larger than the vector element
 type. If the operand is larger than the vector element type, the scalar is
 implicitly truncated to the vector element type.
 
+G_VECTOR_COMPRESS
+^^^^^^^^^^^^^^^^^
+
+Given an input vector, a mask vector, and a passthru vector, continuously place
+all selected (i.e., where mask[i] = true) input lanes in an output vector. All
+remaining lanes in the output are taken from passthru, which may be undef.
+
 Vector Reduction Operations
 ---------------------------
 
@@ -836,7 +868,9 @@ operands.
                                G_ATOMICRMW_MIN, G_ATOMICRMW_UMAX,
                                G_ATOMICRMW_UMIN, G_ATOMICRMW_FADD,
                                G_ATOMICRMW_FSUB, G_ATOMICRMW_FMAX,
-                               G_ATOMICRMW_FMIN
+                               G_ATOMICRMW_FMIN, G_ATOMICRMW_UINC_WRAP,
+			       G_ATOMICRMW_UDEC_WRAP, G_ATOMICRMW_USUB_COND,
+			       G_ATOMICRMW_USUB_SAT
 
 Generic atomicrmw. Expects a MachineMemOperand in addition to explicit
 operands.
