@@ -14,7 +14,7 @@
             // "program": "${workspaceFolder}/build/bin/clang++",
             "program": "${workspaceFolder}/build/bin/clang",
             "args": [
-                "_demos/hello.c",
+                // "_demos/hello.c",
             ],
             "initCommands": [
                 "settings set target.disable-aslr false",
