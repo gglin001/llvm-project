@@ -7,14 +7,16 @@ git sparse-checkout set --no-cone \
   /clang /cmake /libunwind /lld /llvm /mlir /lldb \
   /_demos /.vscode '/*.*'
 
-git sparse-checkout add --no-cone \
+git sparse-checkout add \
   '!/clang/docs' '!/clang/www' '!/llvm/docs' \
   '!/.ci' '!/.github'
 
 # git sparse-checkout add --no-cone \
 #   '!/clang/test'
 
-# git sparse-checkout set --no-cone /cmake /llvm /mlir
+# git sparse-checkout add --no-cone \
+#   '!/llvm/test'
+
 git sparse-checkout list
 git checkout
 
