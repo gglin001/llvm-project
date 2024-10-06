@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/LLVMIR/BasicPtxBuilderInterface.h"
+#include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 
 #define DEBUG_TYPE "ptx-builder"
 #define DBGS() (llvm::dbgs() << "[" DEBUG_TYPE "]: ")
@@ -25,8 +26,6 @@
 
 using namespace mlir;
 using namespace NVVM;
-
-static constexpr int64_t kSharedMemorySpace = 3;
 
 static char getRegisterType(Type type) {
   if (type.isInteger(1))
@@ -43,7 +42,7 @@ static char getRegisterType(Type type) {
     return 'd';
   if (auto ptr = dyn_cast<LLVM::LLVMPointerType>(type)) {
     // Shared address spaces is addressed with 32-bit pointers.
-    if (ptr.getAddressSpace() == kSharedMemorySpace) {
+    if (ptr.getAddressSpace() == NVVMMemorySpace::kSharedMemorySpace) {
       return 'r';
     }
     return 'l';
@@ -99,14 +98,12 @@ void PtxBuilder::insertValue(Value v, PTXRegisterMod itype) {
       } else {
         ss << getModifier() << getRegisterType(t) << ",";
       }
-      ss.flush();
     }
     return;
   }
   // Handle Scalars
   addValue(v);
   ss << getModifier() << getRegisterType(v) << ",";
-  ss.flush();
 }
 
 LLVM::InlineAsmOp PtxBuilder::build() {
