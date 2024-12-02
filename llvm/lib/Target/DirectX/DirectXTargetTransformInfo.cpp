@@ -25,6 +25,14 @@ bool DirectXTTIImpl::isTargetIntrinsicWithScalarOpAtArg(Intrinsic::ID ID,
   }
 }
 
+bool DirectXTTIImpl::isVectorIntrinsicWithOverloadTypeAtArg(Intrinsic::ID ID,
+                                                            int ScalarOpdIdx) {
+  switch (ID) {
+  default:
+    return ScalarOpdIdx == -1;
+  }
+}
+
 bool DirectXTTIImpl::isTargetIntrinsicTriviallyScalarizable(
     Intrinsic::ID ID) const {
   switch (ID) {
@@ -32,6 +40,8 @@ bool DirectXTTIImpl::isTargetIntrinsicTriviallyScalarizable(
   case Intrinsic::dx_rsqrt:
   case Intrinsic::dx_wave_readlane:
   case Intrinsic::dx_splitdouble:
+  case Intrinsic::dx_firstbituhigh:
+  case Intrinsic::dx_firstbitshigh:
     return true;
   default:
     return false;
