@@ -16,6 +16,8 @@
         "LLVM_ENABLE_ASSERTIONS": true,
         "LLVM_ENABLE_WARNINGS": true,
         "LLVM_ENABLE_BINDINGS": false,
+        "LLVM_ENABLE_ZSTD": false,
+        "LLVM_ENABLE_ZLIB": false,
         "LLVM_INCLUDE_DOCS": false,
         "LLVM_INCLUDE_EXAMPLES": false,
         "LLVM_INCLUDE_TESTS": false,
