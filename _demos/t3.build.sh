@@ -1,6 +1,8 @@
 ###############################################################################
 
-# cmake --preset osx -S$PWD/llvm -B$PWD/build
+rm -rf build/CMakeCache.txt
+rm -rf build/CMakeFiles
+
 cmake --preset osx_allen -S$PWD/llvm -B$PWD/build
 
 cmake --build $PWD/build --target all
