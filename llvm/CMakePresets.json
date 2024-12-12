@@ -29,6 +29,7 @@
         "LLVM_APPEND_VC_REV": false,
         "LLVM_ENABLE_IDE": true,
         "LLVM_TARGETS_TO_BUILD": "host;RISCV;AArch64;NVPTX;AMDGPU",
+        "LLVM_EXPERIMENTAL_TARGETS_TO_BUILD": "SPIRV",
         "LLVM_ENABLE_PROJECTS": "mlir;clang;lld",
         "MLIR_INCLUDE_TESTS": true,
         "MLIR_ENABLE_BINDINGS_PYTHON": true
