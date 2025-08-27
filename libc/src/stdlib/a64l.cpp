@@ -7,12 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/stdlib/a64l.h"
+#include "hdr/stdint_proxy.h"
 #include "hdr/types/size_t.h"
 #include "src/__support/common.h"
 #include "src/__support/ctype_utils.h"
 #include "src/__support/macros/config.h"
-
-#include <stdint.h>
 
 namespace LIBC_NAMESPACE_DECL {
 
@@ -40,6 +39,7 @@ constexpr static int32_t b64_char_to_int(char ch) {
 
 // This function takes a base 64 string and writes it to the low 32 bits of a
 // long.
+// TODO: use LIBC_ADD_NULL_CHECKS for checking if the input is a null pointer.
 LLVM_LIBC_FUNCTION(long, a64l, (const char *s)) {
   // the standard says to only use up to 6 characters.
   constexpr size_t MAX_LENGTH = 6;

@@ -95,23 +95,27 @@ inline _LIBCPP_HIDE_FROM_ABI long double __strtold(const char* __nptr, char** __
 }
 
 inline _LIBCPP_HIDE_FROM_ABI long long __strtoll(const char* __nptr, char** __endptr, int __base, __locale_t __loc) {
+#if !_LIBCPP_HAS_MUSL_LIBC
   return ::strtoll_l(__nptr, __endptr, __base, __loc);
+#else
+  (void)__loc;
+  return ::strtoll(__nptr, __endptr, __base);
+#endif
 }
 
 inline _LIBCPP_HIDE_FROM_ABI unsigned long long
 __strtoull(const char* __nptr, char** __endptr, int __base, __locale_t __loc) {
+#if !_LIBCPP_HAS_MUSL_LIBC
   return ::strtoull_l(__nptr, __endptr, __base, __loc);
+#else
+  (void)__loc;
+  return ::strtoull(__nptr, __endptr, __base);
+#endif
 }
 
 //
 // Character manipulation functions
 //
-#if defined(_LIBCPP_BUILDING_LIBRARY)
-inline _LIBCPP_HIDE_FROM_ABI int __islower(int __c, __locale_t __loc) { return islower_l(__c, __loc); }
-
-inline _LIBCPP_HIDE_FROM_ABI int __isupper(int __c, __locale_t __loc) { return isupper_l(__c, __loc); }
-#endif
-
 inline _LIBCPP_HIDE_FROM_ABI int __isdigit(int __c, __locale_t __loc) { return isdigit_l(__c, __loc); }
 
 inline _LIBCPP_HIDE_FROM_ABI int __isxdigit(int __c, __locale_t __loc) { return isxdigit_l(__c, __loc); }

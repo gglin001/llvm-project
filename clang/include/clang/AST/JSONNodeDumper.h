@@ -240,7 +240,6 @@ public:
   void VisitInjectedClassNameType(const InjectedClassNameType *ICNT);
   void VisitObjCInterfaceType(const ObjCInterfaceType *OIT);
   void VisitPackExpansionType(const PackExpansionType *PET);
-  void VisitElaboratedType(const ElaboratedType *ET);
   void VisitMacroQualifiedType(const MacroQualifiedType *MQT);
   void VisitMemberPointerType(const MemberPointerType *MPT);
 
@@ -280,6 +279,9 @@ public:
   void VisitObjCPropertyDecl(const ObjCPropertyDecl *D);
   void VisitObjCPropertyImplDecl(const ObjCPropertyImplDecl *D);
   void VisitBlockDecl(const BlockDecl *D);
+
+  void VisitOpenACCDeclareDecl(const OpenACCDeclareDecl *D);
+  void VisitOpenACCRoutineDecl(const OpenACCRoutineDecl *D);
 
   void VisitDeclRefExpr(const DeclRefExpr *DRE);
   void VisitSYCLUniqueStableNameExpr(const SYCLUniqueStableNameExpr *E);
